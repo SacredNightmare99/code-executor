@@ -1,6 +1,7 @@
 import type { Request } from "express";
+import type { JobStatus } from "../core/jobs/jobTypes.ts";
 
-export type JobStatus = "queued" | "running" | "accepted" | "failed" | "timeout" | "compile_error";
+export type { JobStatus };
 
 export interface AuthUser {
   id: string;

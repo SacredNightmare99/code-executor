@@ -62,7 +62,7 @@ try {
 }
 
 // Check 4: Docker images
-const images = ["runner-c", "runner-py", "runner-java", "runner-runtime"];
+const images = ["runner-c", "runner-cpp", "runner-py", "runner-java", "runner-runtime"];
 for (const image of images) {
   try {
     execSync(`docker inspect ${image} > /dev/null 2>&1`, { stdio: "pipe" });
@@ -175,6 +175,7 @@ checkServer().then((serverCheck) => {
     if (checks.find((c) => c.name.includes("Docker image"))?.status === "✗") {
       console.log("1. Build Docker images:");
       console.log("   docker build -f deployment/docker/runner-c.Dockerfile -t runner-c .");
+      console.log("   docker build -f deployment/docker/runner-cpp.Dockerfile -t runner-cpp .");
       console.log("   docker build -f deployment/docker/runner-py.Dockerfile -t runner-py .");
       console.log("   docker build -f deployment/docker/runner-java.Dockerfile -t runner-java .");
       console.log("   docker build -f deployment/docker/runner-runtime.Dockerfile -t runner-runtime .\n");

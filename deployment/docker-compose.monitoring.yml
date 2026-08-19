@@ -18,14 +18,14 @@ services:
       - SANDBOX_MEMORY=128m
       # Fail fast: production refuses to start without a strong JWT secret.
       - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in the environment}
-      # Runner workspaces must be visible to the host Docker daemon at the same
-      # absolute path (run `docker compose` from the repo root so ${PWD} matches).
-      - RUNNER_WORKSPACE=${PWD}/deployment/.runnix-workspace
+      # Runner workspaces must be visible to both host Docker daemon and container at the same path.
+      # Using /tmp/runnix-workspace avoids host user ID permission collisions (EACCES).
+      - RUNNER_WORKSPACE=/tmp/runnix-workspace
     # The sandbox spawns Docker containers, so the host daemon socket is
     # required. Without it, job execution will fail with SYSTEM_ERROR.
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./.runnix-workspace:${PWD}/deployment/.runnix-workspace
+      - /tmp/runnix-workspace:/tmp/runnix-workspace
     depends_on:
       redis:
         condition: service_healthy

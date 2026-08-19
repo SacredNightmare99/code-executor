@@ -9,8 +9,8 @@ Always-Free: 1 OCPU / 1GB RAM / Ubuntu) with this layout:
 │  Node.js 22 (server + in-process workers)   │  ← pm2 ("runnix")
 │  Redis (queue, jobs, users, tokens)         │  ← systemd, bound to 127.0.0.1
 │  Docker daemon (spawns runner containers)   │  ← optional gVisor (runsc)
-│    runner-c / runner-py / runner-java /     │
-│    runner-runtime images                    │
+│    runner-c / runner-cpp / runner-py /      │
+│    runner-java / runner-runtime images      │
 └──────────────────────────────────────────────┘
 ```
 

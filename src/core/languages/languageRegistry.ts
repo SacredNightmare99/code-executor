@@ -87,22 +87,54 @@ int main() {
     },
     example: "public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hello, World!\");\n    }\n}\n",
   },
+  cpp: {
+    id: "cpp",
+    name: "C++",
+    version: "C++17 (GCC 13)",
+    description: "C++ with GCC 13 compiler (-O2 -std=c++17 optimization)",
+    aliases: ["cpp", "c++"],
+    compile_time_ms: 1000,
+    memory_limit_mb: 64,
+    cpu_limit: 0.5,
+    timeout_ms: 2000,
+    features: {
+      stdin: true,
+      file_io: false,
+      networking: false,
+      subprocess: false,
+    },
+    compiler_flags_default: "-O2 -std=c++17 -pipe",
+    compiler_flags_allowed: ["-O0", "-O1", "-O2", "-O3", "-Wall", "-Werror", "-std=c++17", "-pipe"],
+    example: "#include <iostream>\\n\\nint main() {\\n    std::cout << \"Hello, World!\" << std::endl;\\n    return 0;\\n}",
+  },
 };
 
 /**
  * Get language by ID or alias
  */
 export function getLanguage(lang: string | null | undefined): LanguageInfo | null {
-  const normalizedLang = (lang || "").toLowerCase();
+  if (!lang) return null;
+  const raw = String(lang).toLowerCase();
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const withPlus = raw.replace(/ /g, "+").trim();
+
+  // Check withPlus first for aliases like c++ where URL query params decode + as space
+  if (withPlus !== trimmed) {
+    if (LANGUAGES[withPlus]) return LANGUAGES[withPlus];
+    for (const [, langInfo] of Object.entries(LANGUAGES)) {
+      if (langInfo.aliases && langInfo.aliases.includes(withPlus)) {
+        return langInfo;
+      }
+    }
+  }
 
   // Direct match
-  if (LANGUAGES[normalizedLang]) {
-    return LANGUAGES[normalizedLang];
-  }
+  if (LANGUAGES[trimmed]) return LANGUAGES[trimmed];
 
   // Check aliases
   for (const [, langInfo] of Object.entries(LANGUAGES)) {
-    if (langInfo.aliases && langInfo.aliases.includes(normalizedLang)) {
+    if (langInfo.aliases && langInfo.aliases.includes(trimmed)) {
       return langInfo;
     }
   }

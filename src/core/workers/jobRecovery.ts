@@ -1,7 +1,7 @@
 import { redis } from "../../infrastructure/redis/redisClient.ts";
 import config from "../../config/index.ts";
 import { JobStatus, type JobRecord } from "../jobs/jobTypes.ts";
-import { enqueueJob, requeueProcessingJobs } from "../jobs/jobQueue.ts";
+import { enqueueJob, requeueProcessingJobs, completeJobProcessing } from "../jobs/jobQueue.ts";
 import { updateJob } from "../jobs/jobStore.ts";
 
 const SCAN_COUNT = 200;
@@ -61,13 +61,17 @@ export async function recoverInFlightJobs(): Promise<number> {
 
   const jobs = await scanJobs();
   for (const job of jobs) {
-    if (job.status !== JobStatus.RUNNING) continue;
-    // Skip jobs already requeued from the processing list to avoid
-    // double-enqueueing (double execution / double webhook delivery).
-    if (requeuedIds.has(job.id)) continue;
-    await updateJob(job.id, { status: JobStatus.QUEUED });
-    await enqueueJob(job.id);
-    recovered++;
+    if (requeuedIds.has(job.id)) {
+      if (job.status === JobStatus.RUNNING) {
+        await updateJob(job.id, { status: JobStatus.QUEUED });
+      }
+      continue;
+    }
+    if (job.status === JobStatus.RUNNING) {
+      await updateJob(job.id, { status: JobStatus.QUEUED });
+      await enqueueJob(job.id);
+      recovered++;
+    }
   }
 
   return recovered;
@@ -77,26 +81,38 @@ export async function recoverInFlightJobs(): Promise<number> {
  * Mark jobs that have been RUNNING for too long as SYSTEM_ERROR.
  *
  * Catches genuinely stuck executions (e.g. a hung Docker daemon) so clients
- * stop polling forever. Threshold is generous to avoid killing slow-but-alive
- * jobs (Java needs up to ~8s + JVM startup).
+ * stop polling forever. Threshold is calculated per-job based on language,
+ * input count, and compile timeouts with a safety margin.
  */
 export async function sweepStaleJobs(): Promise<number> {
-  const thresholdMs = Math.max(config.execTimeoutMs * 3, 30_000);
-  const cutoff = Date.now() - thresholdMs;
-
+  const now = Date.now();
   const jobs = await scanJobs();
   let failed = 0;
 
   for (const job of jobs) {
     if (job.status !== JobStatus.RUNNING) continue;
     const startedAt = job.started_at ?? 0;
-    if (!startedAt || startedAt >= cutoff) continue;
+    if (!startedAt) continue;
+
+    // Calculate maximum expected execution time based on language and input count
+    const timeoutPerInput = job.language === "java" ? 8000 : config.execTimeoutMs;
+    const inputCount = Array.isArray(job.inputs) && job.inputs.length > 0 ? job.inputs.length : 1;
+    const compileTime = (job.language === "c" || job.language === "cpp") ? 10000 : 0;
+    // Base timeout + 30s grace period for queuing, container startup, and cleanup
+    const maxExpectedDurationMs = compileTime + (inputCount * timeoutPerInput) + 30000;
+
+    if (now - startedAt < maxExpectedDurationMs) continue;
 
     await updateJob(job.id, {
       status: JobStatus.SYSTEM_ERROR,
       stderr: "Job execution timed out and was recovered by the system",
       finished_at: Date.now(),
     });
+    try {
+      await completeJobProcessing(job.id);
+    } catch {
+      // ignore
+    }
     failed++;
   }
 

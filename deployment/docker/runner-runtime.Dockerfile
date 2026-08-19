@@ -1,11 +1,9 @@
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    python3 \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libstdc++6 \
-    ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -m runner
 
@@ -15,4 +13,4 @@ CMD []
 
 # Health check: verify the container can execute basic operations
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD python3 -c "print('healthy')" || exit 1
+    CMD test -f /bin/sh || exit 1

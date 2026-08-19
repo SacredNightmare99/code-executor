@@ -4,6 +4,7 @@ import { JobStatus, type ExecutionMetrics, type ExecutionResult, type JobRecord,
 
 import config from "../../config/index.ts";
 import { compileC } from "./compileC.ts";
+import { compileCpp } from "./compileCpp.ts";
 import { runBinary } from "./runBinary.ts";
 import { runPython } from "./runPython.ts";
 import { runJava } from "./runJava.ts";
@@ -121,6 +122,67 @@ export default async function runCode(job: JobRecord): Promise<RunCodeResult> {
       const compileStart = Date.now();
       try {
         await compileC(dir);
+        const aOut = path.join(dir, "a.out");
+        if (fs.existsSync(aOut)) fs.chmodSync(aOut, 0o755);
+      } catch (err) {
+        const compileTime = Date.now() - compileStart;
+        return {
+          status: JobStatus.COMPILE_ERROR,
+          stdout: "",
+          stderr: compileFailureMessage(err),
+          exit_code: null as number | null,
+          metrics: {
+            compile_time_ms: compileTime,
+            exec_time_ms: 0,
+          },
+        };
+      }
+
+      const compileTime = Date.now() - compileStart;
+      const results: ExecutionResult[] = [];
+      let execTimeTotal = 0;
+
+      for (const input of inputs) {
+        const execStart = Date.now();
+        const execResult = await runBinary(dir, input);
+        const execTime = Date.now() - execStart;
+        execTimeTotal += execTime;
+        results.push(withInput(input, execResult));
+      }
+
+      const overallStatus = getOverallStatus(results);
+
+      const response = hasMultipleInputs
+        ? {
+          status: overallStatus,
+          results,
+          stdout: "",
+          stderr: "",
+          exit_code: null as number | null,
+        }
+        : {
+          ...results[0]!,
+        };
+
+      return {
+        ...response,
+        metrics: {
+          compile_time_ms: compileTime,
+          exec_time_ms: execTimeTotal,
+        },
+      };
+    }
+
+    if (job.language === "cpp") {
+      const cppPath = path.join(dir, "main.cpp");
+      fs.writeFileSync(cppPath, job.code);
+      fs.chmodSync(cppPath, 0o644);
+
+      const compileStart = Date.now();
+      try {
+        await compileCpp(dir);
+        const aOut = path.join(dir, "a.out");
+        if (fs.existsSync(aOut)) fs.chmodSync(aOut, 0o755);
       } catch (err) {
         const compileTime = Date.now() - compileStart;
         return {

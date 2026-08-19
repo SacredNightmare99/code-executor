@@ -89,6 +89,16 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build runner-cpp
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployment/docker/runner-cpp.Dockerfile
+          tags: runner-cpp
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Build runner-py
         uses: docker/build-push-action@v6
         with:

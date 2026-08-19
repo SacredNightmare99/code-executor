@@ -6,9 +6,9 @@ import { buildCompileArgs, generateContainerId } from "./sandbox.ts";
 const execFileAsync = promisify(execFile);
 
 /**
- * Compile C source code inside a sandboxed Docker container.
+ * Compile C++ source code inside a sandboxed Docker container.
  *
- * @param {string} dir - Host directory containing main.c
+ * @param {string} dir - Host directory containing main.cpp
  * @throws {{ status: string, stderr: string }} on compilation failure
  */
 interface ExecFileError extends Error {
@@ -22,15 +22,15 @@ export interface CompileError {
 
 export const COMPILE_TIMEOUT_MS = 10000;
 
-export async function compileC(dir: string): Promise<void> {
+export async function compileCpp(dir: string): Promise<void> {
   const containerId = generateContainerId();
   const compileCmd =
-    "gcc /app/main.c -O2 -o /app/a.out && chmod 755 /app/a.out";
+    "g++ /app/main.cpp -O2 -std=c++17 -pipe -o /app/a.out && chmod 755 /app/a.out";
 
   const dockerArgs = buildCompileArgs({
     containerId,
     hostDir: dir,
-    image: "runner-c",
+    image: "runner-cpp",
     cmd: ["/bin/sh", "-c", compileCmd],
   });
 

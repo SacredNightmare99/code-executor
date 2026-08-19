@@ -129,8 +129,8 @@ curl -X POST http://localhost:4000/submit \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -d '{
-    "language": "python",
-    "code": "print(\"Hello, World!\")"
+    "language": "cpp",
+    "code": "#include <iostream>\nint main() { std::cout << \"Hello, World!\"; return 0; }"
   }'
 ```
 
@@ -262,7 +262,7 @@ tests/                   # Test suites
 
 ✅ **Code Execution**
 
-- Python 3.12, C (GCC 13), and Java 21 support
+- Python 3.12, C/C++ (GCC 13), and Java 21 support
 - stdin/stdout/stderr capture
 - Timeout protection (2s default, 8s for Java)
 - Queue-based job distribution with crash recovery
@@ -280,7 +280,7 @@ tests/                   # Test suites
 
 - Comprehensive metrics collection
 - Prometheus integration
-- Grafana dashboards (11 panels)
+- Grafana dashboards (10 panels)
 - Health checks and diagnostics
 - Request logging with correlation IDs
 

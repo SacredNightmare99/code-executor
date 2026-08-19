@@ -931,9 +931,10 @@ X-API-Key: sk_live_abc123...
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `language` | string | Yes | Programming language (`python`, `c`) |
+| `language` | string | Yes | Programming language (`python`, `c`, `cpp`, `java`) |
 | `code` | string | Yes | Source code to execute (max 100KB) |
 | `inputs` | array | No | Array of stdin values for repeated runs (max 50). If omitted, defaults to a single empty input. |
+| `callback_url` | string | No | Optional URL to deliver an asynchronous `job.completed` webhook upon completion |
 
 **Response (201 Created):**
 ```json
@@ -1264,18 +1265,45 @@ curl http://localhost:4000/metrics
 
 ### Python 3.12
 - Supports all standard library features
-- Security: Runs in Docker with limited resources (64MB memory, 0.5 CPU)
+- Security: Runs in Docker with limited resources (128MB memory, 0.5 CPU)
 - Timeout: 2 seconds (configurable via `EXEC_TIMEOUT_MS`)
 
 ### C (GCC 13)
 - Requires explicit compilation step
-- Security: Same as Python
+- Standard: C11/C17 (`gcc -O2`)
+- Security: Runs in Docker with limited resources (128MB memory, 0.5 CPU)
 - Example:
   ```c
   #include <stdio.h>
   int main() {
     printf("Hello, World!\n");
     return 0;
+  }
+  ```
+
+### C++ (G++ 13)
+- Requires explicit compilation step
+- Standard: C++17 (`g++ -O2 -std=c++17 -pipe`)
+- Security: Runs in Docker with limited resources (128MB memory, 0.5 CPU)
+- Example:
+  ```cpp
+  #include <iostream>
+  int main() {
+    std::cout << "Hello, World!" << std::endl;
+    return 0;
+  }
+  ```
+
+### Java 21 (OpenJDK 21)
+- Requires compilation and execution inTemurin JDK container
+- Timeout: Up to 8 seconds (allows JVM startup)
+- Security: Runs in Docker with limited resources (128MB memory, 0.5 CPU)
+- Example:
+  ```java
+  public class Main {
+    public static void main(String[] args) {
+      System.out.println("Hello, World!");
+    }
   }
   ```
 
@@ -1370,7 +1398,7 @@ All errors follow this format:
 
 ## Rate Limiting
 
-Rate limiting is fully implemented using a sliding window algorithm in Redis.
+Rate limiting is enforced per-user per minute using atomic Redis buckets.
 
 Limits are applied per-user (based on their JWT or API key) and are tied to their subscription tier:
 - **free**: 10 requests/minute
@@ -1390,16 +1418,17 @@ If the limit is exceeded, the server returns a `429 Too Many Requests` status. N
 ## Security Considerations
 
 1. **Code Isolation**: All code runs in isolated Docker containers with:
-   - 64MB memory limit
+   - 128MB execution memory limit (512MB for compilation containers)
    - 0.5 CPU cores limit
-   - No network access
-   - Read-only filesystem (except /tmp)
-   - Dropped privileges (non-root user)
-   - gVisor sandbox (if available)
+   - No network access (`--network=none`)
+   - Read-only root filesystem
+   - Dropped capabilities (`--cap-drop=ALL`) and non-root user (`runner`)
+   - `no-new-privileges` security option
+   - gVisor sandbox (`runsc`) when available
 
 2. **Input Validation**:
    - Code limited to 100KB
-   - Language restricted to whitelist (python, c)
+   - Language restricted to whitelist (`python`, `c`, `cpp`, `java`)
    - Stdin size reasonable
 
 3. **Timeouts**:

@@ -3,8 +3,22 @@ import { getRedis } from "../infrastructure/redis/redisClient.ts";
 import { ApiError } from "../utils/apiError.ts";
 import { info, warn } from "../infrastructure/logs/logger.ts";
 
+const INCR_WITH_EXPIRE_LUA = `
+local current = redis.call('INCR', KEYS[1])
+if current == 1 or redis.call('TTL', KEYS[1]) < 0 then
+  redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1]))
+end
+return current
+`;
+
+async function incrWithExpire(key: string, ttlSeconds: number): Promise<number> {
+  const redis = getRedis();
+  const res = await redis.eval(INCR_WITH_EXPIRE_LUA, 1, key, ttlSeconds);
+  return typeof res === "number" ? res : Number(res);
+}
+
 /**
- * Rate limiter using sliding window algorithm with Redis
+ * Rate limiter using atomic fixed-window counters in Redis
  * 
  * Limits based on user's rateLimit from JWT (requests per minute)
  * Key format: ratelimit:{userId}:{minute}
@@ -24,16 +38,10 @@ export function rateLimitByUser(): RequestHandler {
       const now = Date.now();
       const currentMinute = Math.floor(now / 60000); // Round down to minute
       
-      const redis = getRedis();
       const key = `ratelimit:${userId}:${currentMinute}`;
       
-      // Increment request count for this minute
-      const count = await redis.incr(key);
-      
-      // Set expiry on first request of the minute (2 minutes to be safe)
-      if (count === 1) {
-        await redis.expire(key, 120);
-      }
+      // Atomically increment request count and set expiry
+      const count = await incrWithExpire(key, 120);
       
       // Check if limit exceeded
       if (count > rateLimit) {
@@ -102,13 +110,8 @@ export function rateLimitByIp(limit = 20, windowSeconds = 60): RequestHandler {
       const windowKey = Math.floor(now / (windowSeconds * 1000));
       const key = `ratelimit:ip:${ip}:${windowKey}`;
 
-      const redis = getRedis();
-      const count = await redis.incr(key);
-
-      // Set expiry on first request of the window (2x to be safe)
-      if (count === 1) {
-        await redis.expire(key, windowSeconds * 2);
-      }
+      // Atomically increment IP request count and set expiry
+      const count = await incrWithExpire(key, windowSeconds * 2);
 
       if (count > limit) {
         const resetTime = (windowKey + 1) * windowSeconds * 1000;

@@ -44,16 +44,19 @@ function isPrivateIpv6(ip: string): boolean {
   const lower = ip.toLowerCase();
 
   // Unspecified / loopback
-  if (lower === "::" || lower === "::1" || lower.startsWith("0:0:0:0:0:0:0:")) {
+  if (lower === "::" || lower === "::1" || lower.startsWith("0:0:0:0:0:0:0:") || lower === "0:0:0:0:0:0:0:0") {
     return true;
   }
 
   // IPv4-mapped addresses (e.g. ::ffff:127.0.0.1)
   if (lower.startsWith("::ffff:")) {
-    return isPrivateIpv4(lower.slice(7));
+    const v4Part = lower.slice(7);
+    if (v4Part.includes(".")) {
+      return isPrivateIpv4(v4Part);
+    }
   }
 
-  // Unique local addresses fc00::/7
+  // Unique local addresses fc00::/7 (fc00::/8 and fd00::/8)
   if (lower.startsWith("fc") || lower.startsWith("fd")) {
     return true;
   }
@@ -67,6 +70,26 @@ function isPrivateIpv6(ip: string): boolean {
     prefix === "fea" ||
     prefix === "feb"
   ) {
+    return true;
+  }
+
+  // Site-local deprecated fec0::/10 (0xfec0 - 0xfeff)
+  if (
+    prefix === "fec" ||
+    prefix === "fed" ||
+    prefix === "fee" ||
+    prefix === "fef"
+  ) {
+    return true;
+  }
+
+  // Discard prefix 100::/64 (RFC 6666)
+  if (lower.startsWith("100::") || lower.startsWith("0100::")) {
+    return true;
+  }
+
+  // Documentation prefix 2001:db8::/32
+  if (lower.startsWith("2001:db8:") || lower.startsWith("2001:0db8:")) {
     return true;
   }
 
@@ -106,28 +129,33 @@ export async function isBlockedUrl(
   }
 
   const hostname = url.hostname.toLowerCase();
+  // Strip enclosing brackets for IPv6 literals (e.g. "[2606:4700::1]" -> "2606:4700::1")
+  const cleanHostname = hostname.startsWith("[") && hostname.endsWith("]")
+    ? hostname.slice(1, -1)
+    : hostname;
 
   if (
-    hostname === "localhost" ||
-    hostname.endsWith(".localhost") ||
-    hostname.endsWith(".local") ||
-    hostname.endsWith(".internal") ||
-    hostname === "0.0.0.0" ||
-    hostname === "::"
+    cleanHostname === "localhost" ||
+    cleanHostname.endsWith(".localhost") ||
+    cleanHostname.endsWith(".local") ||
+    cleanHostname.endsWith(".internal") ||
+    cleanHostname === "0.0.0.0" ||
+    cleanHostname === "::" ||
+    cleanHostname === "::1"
   ) {
     return "Local/internal hostnames are not allowed";
   }
 
   // If the hostname is already an IP literal, check it directly.
-  if (net.isIP(hostname)) {
-    return isPrivateAddress(hostname)
+  if (net.isIP(cleanHostname)) {
+    return isPrivateAddress(cleanHostname)
       ? "Private/loopback addresses are not allowed"
       : null;
   }
 
   // Resolve DNS and reject if any returned address is private.
   try {
-    const addresses = await lookup(hostname);
+    const addresses = await lookup(cleanHostname);
     for (const { address } of addresses) {
       if (isPrivateAddress(address)) {
         return `Resolved address ${address} is not allowed (private/loopback)`;

@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "child_process";
+import { spawn, execFile } from "child_process";
 import { JobStatus, type ExecutionResult } from "../jobs/jobTypes.ts";
 import { truncateOutput, MAX_OUTPUT_SIZE } from "../../utils/outputHandler.ts";
 import { buildSandboxArgs, generateContainerId } from "./sandbox.ts";
@@ -50,6 +50,11 @@ export function runJava(dir: string, input: string | number | null | undefined):
       stdio: ["pipe", "pipe", "pipe"],
     });
 
+    // Handle stdin errors (e.g. EPIPE if container exits early)
+    child.stdin.on("error", () => {
+      // Ignore write errors to closed stdin pipe
+    });
+
     let stdout = "";
     let stderr = "";
     let stdoutTruncated = false;
@@ -68,6 +73,11 @@ export function runJava(dir: string, input: string | number | null | undefined):
       if (stdout.length + chunk.length > MAX_OUTPUT_SIZE) {
         stdoutTruncated = true;
         stdout = truncateOutput(stdout);
+        try {
+          child.stdout.destroy();
+        } catch {
+          // ignore
+        }
         return;
       }
       stdout += chunk;
@@ -78,6 +88,11 @@ export function runJava(dir: string, input: string | number | null | undefined):
       if (stderr.length + chunk.length > MAX_OUTPUT_SIZE) {
         stderrTruncated = true;
         stderr = truncateOutput(stderr);
+        try {
+          child.stderr.destroy();
+        } catch {
+          // ignore
+        }
         return;
       }
       stderr += chunk;
@@ -91,13 +106,10 @@ export function runJava(dir: string, input: string | number | null | undefined):
     const javaTimeout = 8000; // 8 seconds for Java (vs 2s for Python/C)
     const killTimer = setTimeout(() => {
       // Kill the container by its unique name (ensures cleanup even if the
-      // docker client hangs). `--rm` alone won't clean up when the client is
-      // killed, so an explicit kill is required.
-      try {
-        spawnSync("docker", ["kill", containerId], { timeout: 2000 });
-      } catch {
+      // docker client hangs). Non-blocking to avoid freezing the event loop.
+      execFile("docker", ["kill", containerId], { timeout: 2000 }, () => {
         // ignore — container may already be dead
-      }
+      });
 
       try {
         child.kill("SIGKILL");

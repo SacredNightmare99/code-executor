@@ -193,14 +193,27 @@ describe("Sandbox Builder", () => {
       assert.ok(!args.includes("--read-only"));
     });
 
-    it("should include --runtime=runsc when gVisor available", () => {
-      setGVisorOverride(true);
+    it("should include resource limits for compilation", () => {
+      setGVisorOverride(false);
       const args = buildCompileArgs({
         hostDir: "/tmp/test",
-        image: "runner-c",
-        cmd: ["/bin/sh", "-c", "gcc main.c"],
+        image: "runner-cpp",
+        cmd: ["/bin/sh", "-c", "g++ main.cpp"],
+        memory: "256m",
       });
-      assert.ok(args.includes("--runtime=runsc"));
+      assert.ok(args.includes("--memory=256m"));
+      assert.ok(args.some((a) => a.startsWith("--cpus=")));
+      assert.ok(args.some((a) => a.startsWith("--pids-limit=")));
+    });
+
+    it("should include security hardening for compilation", () => {
+      setGVisorOverride(false);
+      const args = buildCompileArgs({
+        hostDir: "/tmp/test",
+        image: "runner-cpp",
+        cmd: ["/bin/sh", "-c", "g++ main.cpp"],
+      });
+      assert.ok(args.includes("--cap-drop=ALL"));
     });
   });
 });

@@ -135,6 +135,15 @@ describe("LanguageRegistry", () => {
       assert.ok(c.compiler_flags_allowed.length > 0);
     });
 
+    it("C++ should have compiler_flags_allowed", () => {
+      const cpp = getLanguage("cpp");
+      assert.ok(cpp);
+      assert.ok(cpp.compiler_flags_default);
+      assert.ok(Array.isArray(cpp.compiler_flags_allowed));
+      assert.ok(cpp.compiler_flags_allowed.length > 0);
+      assert.equal(getLanguage("c++")?.id, "cpp");
+    });
+
     it("Python should have zero compile_time_ms", () => {
       const python = getLanguage("python");
       assert.ok(python);

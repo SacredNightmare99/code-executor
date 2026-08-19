@@ -145,6 +145,8 @@ export class MetricsCollector {
         this.jobs.accepted++;
         break;
       case "RUNTIME_ERROR":
+      case "SYSTEM_ERROR":
+      case "MEMORY_LIMIT_EXCEEDED":
         this.jobs.failed++;
         break;
       case "TIME_LIMIT_EXCEEDED":
@@ -153,10 +155,16 @@ export class MetricsCollector {
       case "COMPILE_ERROR":
         this.jobs.compile_error++;
         break;
+      default:
+        this.jobs.failed++;
+        break;
     }
 
     // Record by language
-    if (language && this.jobs.by_language[language]) {
+    if (language) {
+      if (!this.jobs.by_language[language]) {
+        this.jobs.by_language[language] = { submitted: 0, completed: 0 };
+      }
       this.jobs.by_language[language].completed++;
     }
 

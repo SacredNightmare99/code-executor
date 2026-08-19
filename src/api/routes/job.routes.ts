@@ -9,7 +9,7 @@ import { enqueueJob } from "../../core/jobs/jobQueue.ts";
 import { JobStatus, type JobRecord } from "../../core/jobs/jobTypes.ts";
 import { authenticateJWT } from "../../middleware/authMiddleware.ts";
 import { rateLimitByUser, checkRateLimit } from "../../middleware/rateLimiter.ts";
-import { getAllLanguages, getLanguageById, isLanguageSupported } from "../../core/languages/languageRegistry.ts";
+import { getAllLanguages, getLanguage, getLanguageById } from "../../core/languages/languageRegistry.ts";
 
 const router = express.Router();
 
@@ -29,9 +29,11 @@ router.post("/submit", authenticateJWT, rateLimitByUser(), async (req, res, next
       throw new ApiError(400, "Missing language or code");
     }
 
-    if (!isLanguageSupported(language)) {
+    const langInfo = getLanguage(language);
+    if (!langInfo) {
       throw new ApiError(400, `Unsupported language: ${language}`, "UNSUPPORTED_LANGUAGE");
     }
+    const normalizedLanguage = langInfo.id;
 
     if (stdin !== undefined && typeof stdin !== "string") {
       throw new ApiError(400, "stdin must be a string");
@@ -84,7 +86,7 @@ router.post("/submit", authenticateJWT, rateLimitByUser(), async (req, res, next
     await createJob({
       id: jobId,
       userId,
-      language,
+      language: normalizedLanguage,
       code,
       stdin: "",
       inputs: normalizedInputs,
@@ -100,7 +102,7 @@ router.post("/submit", authenticateJWT, rateLimitByUser(), async (req, res, next
     info("job queued", { reqId, jobId, userId });
 
     // Record metrics
-    metrics.recordSubmission(language);
+    metrics.recordSubmission(normalizedLanguage);
 
     return res.status(201).json(
       ApiResponse.success(
@@ -200,33 +202,51 @@ router.get("/jobs", authenticateJWT, checkRateLimit(), async (req, res, next) =>
     const userId = req.user.id;
     const { status, language, limit = 50, offset = 0, from, to } = req.query;
 
-    const pageLimit = Math.min(parseInt(String(limit), 10) || 50, 100);
-    const pageOffset = parseInt(String(offset), 10) || 0;
+    const parsedLimit = parseInt(String(limit), 10);
+    const pageLimit = isNaN(parsedLimit) || parsedLimit <= 0 ? 50 : Math.min(parsedLimit, 100);
 
-    const [jobIds, total] = await Promise.all([
-      getUserJobIds(userId, pageOffset, pageLimit),
-      getUserJobCount(userId),
-    ]);
+    const parsedOffset = parseInt(String(offset), 10);
+    const pageOffset = isNaN(parsedOffset) || parsedOffset < 0 ? 0 : parsedOffset;
 
-    // Fetch all jobs in parallel
-    const jobs = (
-      await Promise.all(jobIds.map((id) => getJob(id)))
-    ).filter((job): job is JobRecord => job !== null); // filter expired jobs
+    const hasFilters = Boolean(status || language || from || to);
+    const filterLang = language ? getLanguage(String(language))?.id || String(language).toLowerCase() : null;
 
-    // Apply filters in-memory
-    const filtered = jobs.filter((job) => {
-      if (status && job.status !== status) return false;
-      if (language && job.language !== language) return false;
-      const createdAt = job.created_at ?? job.createdAt ?? 0;
-      if (from && createdAt < parseInt(from, 10)) return false;
-      if (to && createdAt > parseInt(to, 10)) return false;
-      return true;
-    });
+    let paginatedJobs: JobRecord[];
+    let total: number;
+
+    if (hasFilters) {
+      // When filters are present, load all user job records to filter before slicing
+      const allJobIds = await getUserJobIds(userId, 0, -1);
+      const allJobs = (
+        await Promise.all(allJobIds.map((id) => getJob(id)))
+      ).filter((job): job is JobRecord => job !== null);
+
+      const filtered = allJobs.filter((job) => {
+        if (status && job.status !== status) return false;
+        if (filterLang && job.language !== filterLang) return false;
+        const createdAt = job.created_at ?? job.createdAt ?? 0;
+        if (from && createdAt < parseInt(String(from), 10)) return false;
+        if (to && createdAt > parseInt(String(to), 10)) return false;
+        return true;
+      });
+
+      total = filtered.length;
+      paginatedJobs = filtered.slice(pageOffset, pageOffset + pageLimit);
+    } else {
+      const [jobIds, userTotal] = await Promise.all([
+        getUserJobIds(userId, pageOffset, pageLimit),
+        getUserJobCount(userId),
+      ]);
+      total = userTotal;
+      paginatedJobs = (
+        await Promise.all(jobIds.map((id) => getJob(id)))
+      ).filter((job): job is JobRecord => job !== null);
+    }
 
     return res.json({
       success: true,
       data: {
-        jobs: filtered,
+        jobs: paginatedJobs,
         total,
         limit: pageLimit,
         offset: pageOffset,

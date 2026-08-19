@@ -5,3 +5,6 @@ dist/
 *.log
 logs/
 .release-notes.md
+.runnix-workspace/
+deployment/.runnix-workspace/
+scratch/

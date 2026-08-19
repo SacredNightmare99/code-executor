@@ -9,6 +9,7 @@ import {
   type TestHarness,
 } from "../helpers/api.ts";
 import { flushTestDb, closeRedis } from "../helpers/redis.ts";
+import { getJob } from "../../src/core/jobs/jobStore.ts";
 
 describe("API: jobs", () => {
   let h: TestHarness;
@@ -179,5 +180,60 @@ describe("API: jobs", () => {
 
     const missing = await h.api.get("/languages/rust");
     assert.equal(missing.status, 404);
+  });
+
+  it("U-CXX-01: should accept cpp language and execute via mock", async () => {
+    const submit = await h.api.post("/submit").set(authA()).send({ language: "cpp", code: "hello" });
+    assert.equal(submit.status, 201);
+    const result = await waitForJob(h.api, tokenA, submit.body.data.job_id);
+    assert.equal(result.status, "ACCEPTED");
+  });
+
+  it("U-CXX-03: should report COMPILE_ERROR for cpp", async () => {
+    const submit = await h.api.post("/submit").set(authA()).send({ language: "cpp", code: "compile-error" });
+    const result = await waitForJob(h.api, tokenA, submit.body.data.job_id);
+    assert.equal(result.status, "COMPILE_ERROR");
+  });
+
+  it("U-CXX-04: should report RUNTIME_ERROR for cpp", async () => {
+    const submit = await h.api.post("/submit").set(authA()).send({ language: "cpp", code: "runtime-error" });
+    const result = await waitForJob(h.api, tokenA, submit.body.data.job_id);
+    assert.equal(result.status, "RUNTIME_ERROR");
+  });
+
+  it("U-CXX-05: should report TIME_LIMIT_EXCEEDED for cpp", async () => {
+    const submit = await h.api.post("/submit").set(authA()).send({ language: "cpp", code: "timeout" });
+    const result = await waitForJob(h.api, tokenA, submit.body.data.job_id);
+    assert.equal(result.status, "TIME_LIMIT_EXCEEDED");
+  });
+
+  it("U-CXX-07: should execute cpp with empty stdin", async () => {
+    const submit = await h.api.post("/submit").set(authA()).send({ language: "cpp", code: "good" });
+    const result = await waitForJob(h.api, tokenA, submit.body.data.job_id);
+    assert.equal(result.status, "ACCEPTED");
+  });
+
+  it("U-CXX-08: should handle multiple inputs for cpp", async () => {
+    const submit = await h.api.post("/submit").set(authA()).send({ language: "cpp", code: "good", inputs: ["a", "b"] });
+    const result = await waitForJob(h.api, tokenA, submit.body.data.job_id);
+    assert.equal(result.status, "ACCEPTED");
+    assert.equal(result.results.length, 2);
+  });
+
+  it("should normalize language aliases on submission and filtering", async () => {
+    const submitCppAlias = await h.api.post("/submit").set(authA()).send({ language: "c++", code: "hello" });
+    assert.equal(submitCppAlias.status, 201);
+    const jobCpp = await getJob(submitCppAlias.body.data.job_id);
+    assert.equal(jobCpp?.language, "cpp");
+
+    const submitPyAlias = await h.api.post("/submit").set(authA()).send({ language: "py", code: "print(1)" });
+    assert.equal(submitPyAlias.status, 201);
+    const jobPy = await getJob(submitPyAlias.body.data.job_id);
+    assert.equal(jobPy?.language, "python");
+
+    const filterRes = await h.api.get("/jobs?language=c++").set(authA());
+    assert.equal(filterRes.status, 200);
+    assert.ok(filterRes.body.data.jobs.length > 0);
+    assert.ok(filterRes.body.data.jobs.every((j: { language: string }) => j.language === "cpp"));
   });
 });

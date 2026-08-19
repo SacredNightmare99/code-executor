@@ -18,6 +18,17 @@ Dockerfile: `deployment/docker/runner-c.Dockerfile`
   docker build -f deployment/docker/runner-c.Dockerfile -t runner-c .
   ```
 
+### 1.b. `runner-cpp` (C++ Compilation)
+Dockerfile: `deployment/docker/runner-cpp.Dockerfile`
+- Based on `gcc:13`
+- Contains g++
+- Compiles C++ code into an ELF binary but cannot execute it.
+- Uses `-std=c++17`
+
+  ```bash
+  docker build -f deployment/docker/runner-cpp.Dockerfile -t runner-cpp .
+  ```
+
 ### 2. `runner-py` (Python Runtime)
 Dockerfile: `deployment/docker/runner-py.Dockerfile`
 
@@ -40,11 +51,11 @@ Dockerfile: `deployment/docker/runner-java.Dockerfile`
   docker build -f deployment/docker/runner-java.Dockerfile -t runner-java .
   ```
 
-### 4. `runner-runtime` (C Binary Execution)
+### 4. `runner-runtime` (C/C++ Binary Execution)
 Dockerfile: `deployment/docker/runner-runtime.Dockerfile`
 
-- **Purpose**: Runs compiled C binaries (`./a.out`).
-- **Base**: `debian:bookworm-slim` (needs the glibc that `gcc:13` produces).
+- **Purpose**: Runs compiled C and C++ binaries (`./a.out`).
+- **Base**: `debian:trixie-slim` (provides `GLIBCXX_3.4.32` and glibc matching `gcc:13`).
 - **User**: non-root `runner`.
 - **Build**:
   ```bash
@@ -55,6 +66,7 @@ Dockerfile: `deployment/docker/runner-runtime.Dockerfile`
 
 ```bash
 docker build -f deployment/docker/runner-c.Dockerfile -t runner-c .
+docker build -f deployment/docker/runner-cpp.Dockerfile -t runner-cpp .
 docker build -f deployment/docker/runner-py.Dockerfile -t runner-py .
 docker build -f deployment/docker/runner-java.Dockerfile -t runner-java .
 docker build -f deployment/docker/runner-runtime.Dockerfile -t runner-runtime .

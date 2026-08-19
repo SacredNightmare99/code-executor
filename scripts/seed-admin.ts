@@ -9,6 +9,7 @@
  */
 
 import "dotenv/config";
+import crypto from "crypto";
 import { createUser, getUserByUsername } from "../src/core/auth/userStore.ts";
 import { redis } from "../src/infrastructure/redis/redisClient.ts";
 
@@ -43,7 +44,11 @@ async function seedAdmin(): Promise<void> {
     }
 
     const username = process.env.ADMIN_USERNAME || "admin";
-    const password = process.env.ADMIN_PASSWORD || "AdminPass123!";
+    const password = process.env.ADMIN_PASSWORD || crypto.randomBytes(16).toString("hex");
+
+    if (!process.env.ADMIN_PASSWORD) {
+      log("⚠ ADMIN_PASSWORD not set in environment — generated secure random password.", "yellow");
+    }
 
     log(`Checking for existing admin user: ${username}...`, "yellow");
 

@@ -34,7 +34,8 @@ Real-time metrics in JSON format with human-readable summary.
     "jobs_per_second": "0.04",
     "by_language": {
       "python": {"submitted": 100, "completed": 97},
-      "c": {"submitted": 50, "completed": 48}
+      "c": {"submitted": 30, "completed": 28},
+      "cpp": {"submitted": 20, "completed": 20}
     }
   },
   "execution": {
@@ -55,11 +56,18 @@ Real-time metrics in JSON format with human-readable summary.
         "max_ms": 1800
       },
       "c": {
-        "total_ms": 13000,
-        "count": 48,
-        "average_ms": 270,
+        "total_ms": 6000,
+        "count": 28,
+        "average_ms": 214,
         "min_ms": 50,
-        "max_ms": 900
+        "max_ms": 500
+      },
+      "cpp": {
+        "total_ms": 7000,
+        "count": 20,
+        "average_ms": 350,
+        "min_ms": 100,
+        "max_ms": 800
       }
     }
   },

@@ -40,6 +40,8 @@ describe("isPrivateAddress", () => {
     assert.equal(isPrivateAddress("fd00::1"), true);
     assert.equal(isPrivateAddress("fe80::1"), true);
     assert.equal(isPrivateAddress("febf::1"), true);
+    assert.equal(isPrivateAddress("fec0::1"), true);
+    assert.equal(isPrivateAddress("2001:db8::1"), true);
   });
 
   it("should flag IPv4-mapped IPv6 private addresses", () => {
@@ -79,11 +81,13 @@ describe("isBlockedUrl", () => {
     assert.ok(await isBlockedUrl("http://192.168.1.10/cb"));
     assert.ok(await isBlockedUrl("http://169.254.169.254/latest/meta-data/"));
     assert.ok(await isBlockedUrl("http://[::1]:3000/cb"));
+    assert.ok(await isBlockedUrl("http://[fec0::1]/cb"));
   });
 
   it("should allow public IP literals without DNS", async () => {
     assert.equal(await isBlockedUrl("http://8.8.8.8/cb"), null);
     assert.equal(await isBlockedUrl("https://1.1.1.1/cb"), null);
+    assert.equal(await isBlockedUrl("http://[2606:4700:4700::1111]/cb"), null);
   });
 
   it("should block a hostname that resolves to a private address", async () => {

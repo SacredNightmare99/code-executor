@@ -12,6 +12,7 @@ export const JobStatus = {
 } as const;
 
 export type JobStatusValue = (typeof JobStatus)[keyof typeof JobStatus];
+export type JobStatus = JobStatusValue;
 
 export interface ExecutionMetrics {
   [key: string]: number;

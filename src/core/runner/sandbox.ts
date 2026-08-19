@@ -26,9 +26,13 @@ export interface SandboxArgsOptions {
 }
 
 export interface CompileArgsOptions {
+  containerId?: string;
   hostDir: string;
   image: string;
   cmd: string[];
+  memory?: string;
+  cpus?: string;
+  pidsLimit?: string;
 }
 
 export function generateContainerId(): string {
@@ -78,8 +82,10 @@ export function buildSandboxArgs(options: SandboxArgsOptions): string[] {
     args.push("--name", containerId);
   }
 
+  const useGVisor = isGVisorAvailable();
+
   // gVisor runtime (if available and not disabled)
-  if (isGVisorAvailable()) {
+  if (useGVisor) {
     args.push("--runtime=runsc");
   }
 
@@ -95,8 +101,10 @@ export function buildSandboxArgs(options: SandboxArgsOptions): string[] {
   for (const cap of sb.capDrop) {
     args.push(`--cap-drop=${cap}`);
   }
-  for (const opt of sb.securityOpts) {
-    args.push(`--security-opt=${opt}`);
+  if (!useGVisor) {
+    for (const opt of sb.securityOpts) {
+      args.push(`--security-opt=${opt}`);
+    }
   }
 
   // Filesystem
@@ -104,9 +112,10 @@ export function buildSandboxArgs(options: SandboxArgsOptions): string[] {
     args.push("--read-only");
   }
 
+  // Writable /tmp without noexec (needed for runsc container init synchronization)
   args.push(
     "--tmpfs",
-    `/tmp:rw,nosuid,noexec,size=${tmpfsSize || sb.tmpfsSize}`,
+    `/tmp:rw,nosuid,size=${tmpfsSize || sb.tmpfsSize}`,
   );
 
   // User isolation
@@ -124,7 +133,8 @@ export function buildSandboxArgs(options: SandboxArgsOptions): string[] {
 
 /**
  * Build docker arguments for compilation steps.
- * Slightly relaxed constraints (larger tmpfs, no read-only for build artifacts).
+ * Compilers (GCC/G++) spawn multiple sub-processes (cc1, as, ld) and run
+ * as trusted build toolchains under standard runtime with resource limits.
  *
  * @param {Object} options
  * @param {string} options.hostDir - Host directory to mount
@@ -133,28 +143,30 @@ export function buildSandboxArgs(options: SandboxArgsOptions): string[] {
  * @returns {string[]}
  */
 export function buildCompileArgs(options: CompileArgsOptions): string[] {
-  const { hostDir, image, cmd } = options;
+  const { containerId, hostDir, image, cmd, memory, cpus, pidsLimit } = options;
   const sb = config.sandbox;
 
   const args = ["run", "--rm"];
 
-  // gVisor runtime
-  if (isGVisorAvailable()) {
-    args.push("--runtime=runsc");
+  if (containerId) {
+    args.push("--name", containerId);
   }
 
-  args.push(`--network=${sb.network}`);
+  // Resource constraints for compilation
+  args.push(
+    `--memory=${memory || "512m"}`,
+    `--cpus=${cpus || sb.cpuLimit}`,
+    `--pids-limit=${pidsLimit || "128"}`,
+    `--network=${sb.network}`,
+  );
 
   // Security
   for (const cap of sb.capDrop) {
     args.push(`--cap-drop=${cap}`);
   }
-  for (const opt of sb.securityOpts) {
-    args.push(`--security-opt=${opt}`);
-  }
 
   // Larger tmpfs for compilation
-  args.push("--tmpfs", `/tmp:rw,nosuid,noexec,size=${sb.compileTmpfsSize}`);
+  args.push("--tmpfs", `/tmp:rw,nosuid,size=${sb.compileTmpfsSize}`);
 
   // Mount
   args.push("-v", `${hostDir}:/app:rw`);

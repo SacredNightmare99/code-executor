@@ -240,4 +240,20 @@ export async function onJobCompleted(userId: string, job: JobRecord): Promise<vo
   };
 
   await triggerWebhooks(userId, "job.completed", jobData);
+
+  // If a per-job one-off callback_url was specified, deliver to it as well
+  if (job.callback_url) {
+    const payload = {
+      event: "job.completed",
+      timestamp: Date.now(),
+      data: jobData,
+    };
+    deliverWebhook(job.callback_url, payload, null).catch((err) => {
+      error(`Callback URL delivery error for job ${job.id}:`, {
+        job_id: job.id,
+        url: job.callback_url,
+        error: err.message,
+      });
+    });
+  }
 }

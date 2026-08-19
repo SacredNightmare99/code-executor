@@ -62,6 +62,7 @@ fi
 if [ -n "$PREV" ] && git diff --name-only "$PREV" HEAD | grep -q '^deployment/docker/'; then
   log "runner Dockerfiles changed — rebuilding images"
   docker build -f deployment/docker/runner-c.Dockerfile -t runner-c .
+  docker build -f deployment/docker/runner-cpp.Dockerfile -t runner-cpp .
   docker build -f deployment/docker/runner-py.Dockerfile -t runner-py .
   docker build -f deployment/docker/runner-java.Dockerfile -t runner-java .
   docker build -f deployment/docker/runner-runtime.Dockerfile -t runner-runtime .

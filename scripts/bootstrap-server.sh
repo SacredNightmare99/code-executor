@@ -126,18 +126,24 @@ EOF
 setup_env() {
   [ -f "$APP_DIR/.env" ] && return
   [ -f "$APP_DIR/.env.example" ] || die ".env.example not found in $APP_DIR"
-  log "creating .env with a generated JWT_SECRET"
+  log "creating .env with a generated JWT_SECRET and ADMIN_PASSWORD"
   cp "$APP_DIR/.env.example" "$APP_DIR/.env"
-  local secret
+  local secret admin_pw
   secret="$(openssl rand -hex 48)"
+  admin_pw="$(openssl rand -hex 16)"
   sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${secret}|" "$APP_DIR/.env"
+  if grep -q '^ADMIN_PASSWORD=' "$APP_DIR/.env"; then
+    sed -i "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=${admin_pw}|" "$APP_DIR/.env"
+  else
+    echo "ADMIN_PASSWORD=${admin_pw}" >> "$APP_DIR/.env"
+  fi
   # Production-friendly defaults for the 1GB box.
   sed -i 's/^NODE_ENV=.*/NODE_ENV=production/' "$APP_DIR/.env"
   sed -i 's/^WORKERS=.*/WORKERS=1/' "$APP_DIR/.env"
   if [ -n "${REDIS_PASSWORD:-}" ]; then
     sed -i "s|^REDIS_URL=.*|REDIS_URL=redis://:${REDIS_PASSWORD}@localhost:6379|" "$APP_DIR/.env"
   fi
-  log "generated JWT_SECRET and saved to $APP_DIR/.env (edit it if needed)"
+  log "generated JWT_SECRET and ADMIN_PASSWORD and saved to $APP_DIR/.env"
 }
 
 # ── App install + runner images ───────────────────────────────────────────
@@ -152,6 +158,7 @@ setup_app() {
 
   log "building runner images (this can take a while)"
   docker build -f deployment/docker/runner-c.Dockerfile -t runner-c . >/dev/null
+  docker build -f deployment/docker/runner-cpp.Dockerfile -t runner-cpp . >/dev/null
   docker build -f deployment/docker/runner-py.Dockerfile -t runner-py . >/dev/null
   docker build -f deployment/docker/runner-java.Dockerfile -t runner-java . >/dev/null
   docker build -f deployment/docker/runner-runtime.Dockerfile -t runner-runtime . >/dev/null

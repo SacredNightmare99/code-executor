@@ -20,7 +20,7 @@ function hasDockerImage(image: string): boolean {
   }
 }
 
-const IMAGES = ["runner-py", "runner-c", "runner-java", "runner-runtime"];
+const IMAGES = ["runner-py", "runner-c", "runner-java", "runner-runtime", "runner-cpp"];
 // Gated: only runs when RUN_DOCKER_TESTS=1 AND the runner images exist.
 const IMAGES_AVAILABLE = process.env.RUN_DOCKER_TESTS === "1" && IMAGES.every(hasDockerImage);
 
@@ -111,6 +111,34 @@ describe("Docker sandbox e2e", { skip: !IMAGES_AVAILABLE }, () => {
       .post("/submit")
       .set(auth())
       .send({ language: "python", code: "import time; time.sleep(10)" });
+    const result = await waitForJob(h.api, token, submit.body.data.job_id, { timeoutMs: 20000 });
+    assert.equal(result.status, "TIME_LIMIT_EXCEEDED");
+  });
+
+  it("should compile and run C++", async () => {
+    const code = "#include <iostream>\nint main() { std::cout << \"hello cpp\"; return 0; }";
+    const submit = await h.api.post("/submit").set(auth()).send({ language: "cpp", code });
+    assert.equal(submit.status, 201);
+
+    const result = await waitForJob(h.api, token, submit.body.data.job_id, { timeoutMs: 30000 });
+    assert.equal(result.status, "ACCEPTED");
+    assert.match(result.results[0].stdout, /hello cpp/);
+  });
+
+  it("should detect C++ compile errors", async () => {
+    const submit = await h.api
+      .post("/submit")
+      .set(auth())
+      .send({ language: "cpp", code: "int main() { return 0" }); // missing semicolon
+    const result = await waitForJob(h.api, token, submit.body.data.job_id, { timeoutMs: 30000 });
+    assert.equal(result.status, "COMPILE_ERROR");
+  });
+
+  it("should enforce the execution timeout for C++", async () => {
+    const submit = await h.api
+      .post("/submit")
+      .set(auth())
+      .send({ language: "cpp", code: "int main() { while(1) {} return 0; }" });
     const result = await waitForJob(h.api, token, submit.body.data.job_id, { timeoutMs: 20000 });
     assert.equal(result.status, "TIME_LIMIT_EXCEEDED");
   });

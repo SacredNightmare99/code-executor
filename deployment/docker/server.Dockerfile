@@ -18,8 +18,10 @@ COPY src ./src
 RUN apt-get update && apt-get install -y --no-install-recommends docker.io \
     && rm -rf /var/lib/apt/lists/*
 
-# Non-root user.
-RUN useradd -m appuser
+# Non-root user with workspace directory permissions.
+RUN useradd -m -u 1000 -s /bin/bash appuser && \
+    mkdir -p /tmp/runnix-workspace && \
+    chmod 1777 /tmp/runnix-workspace
 USER appuser
 
 ENV NODE_ENV=production

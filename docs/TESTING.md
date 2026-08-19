@@ -2,22 +2,34 @@
 
 ## Overview
 
-The Code Executor includes comprehensive test suites covering unit tests, integration tests, and load tests.
+Runnix includes comprehensive test suites powered by the Node.js native test runner (`node:test`). Tests are organized into unit, Redis, API, and Docker sandbox integration suites.
 
 ## Test Structure
 
 ```
 tests/
-├── unit/                      # Unit tests for individual modules
-│   ├── metrics.test.ts        # Metrics collection tests
-│   ├── webhooks.test.ts       # Webhook store tests
-│   ├── language-registry.test.ts  # Language metadata tests
-│   └── apikey.test.ts         # API key generation/validation tests
-├── integration/               # End-to-end API tests
-│   ├── integration.test.ts    # Core functionality tests
-│   ├── auth.test.ts           # Authentication flow tests
-│   └── advanced-features.test.ts  # Code retrieval, webhooks, language info
-└── run-all.ts                 # Test runner script
+├── unit/              # Pure unit tests (no external services needed)
+│   ├── config.test.ts
+│   ├── jwt.test.ts
+│   ├── languageRegistry.test.ts
+│   ├── metricsCollector.test.ts
+│   ├── rateLimiter.test.ts
+│   ├── sandbox.test.ts
+│   ├── urlSafety.test.ts
+│   └── ...
+├── redis/             # Tests requiring Redis
+│   ├── apiKeyStore.test.ts
+│   ├── jobQueue.test.ts
+│   ├── tokenStore.test.ts
+│   └── webhookStore.test.ts
+├── api/               # Supertest API tests against in-memory Express server
+│   ├── auth.test.ts
+│   ├── jobs.test.ts
+│   ├── monitoring.test.ts
+│   ├── users.test.ts
+│   └── webhooks.test.ts
+└── docker/            # Real Docker sandbox end-to-end tests
+    └── execution.test.ts
 ```
 
 ## Running Tests
@@ -29,75 +41,64 @@ tests/
    redis-server
    ```
 
-2. **Start the server:**
-   ```bash
-   npm run dev
-   ```
+### 1. Run Complete In-Process Test Suite
 
-### Run All Tests
-
+Runs all Unit, Redis, and API tests:
 ```bash
 npm test
 ```
 
-This runs all unit tests followed by all integration tests.
-
-### Run Pure Unit Tests (No Dependencies)
-
-```bash
-npm run test:unit:pure
-```
-These tests use the built-in `node:test` runner and do not require Redis or a running server. They cover core logic like configuration, metrics calculations, API response formatting, and error handling.
-
-### Run Redis-Dependent Unit Tests
+### 2. Run Pure Unit Tests (Fast, No Redis Required)
 
 ```bash
 npm run test:unit
 ```
 
-Individual unit tests:
+### 3. Run Redis Tests
+
 ```bash
-npm run test:unit:metrics      # Metrics collection
-npm run test:unit:webhooks     # Webhook store
-npm run test:unit:language     # Language registry
-npm run test:unit:apikey       # API key management
+npm run test:redis
 ```
 
-### Run Integration Tests Only
+### 4. Run API Route Tests
 
 ```bash
+npm run test:api
+```
+
+### 5. Run Test Suite with Coverage
+
+```bash
+npm run test:coverage
+```
+
+### 6. Run Real Docker Sandbox Tests (Requires Built Runner Images)
+
+```bash
+# Build runner images
+docker build -f deployment/docker/runner-c.Dockerfile -t runner-c .
+docker build -f deployment/docker/runner-cpp.Dockerfile -t runner-cpp .
+docker build -f deployment/docker/runner-py.Dockerfile -t runner-py .
+docker build -f deployment/docker/runner-java.Dockerfile -t runner-java .
+docker build -f deployment/docker/runner-runtime.Dockerfile -t runner-runtime .
+
+# Run real sandbox integration tests
 npm run test:integration
 ```
 
-**Note:** Integration tests automatically create test users and authenticate.
+## Static Analysis & Quality Checks
 
-Individual integration tests:
-```bash
-npm run test:integration:main      # Core API functionality
-npm run test:integration:auth      # Authentication flows
-npm run test:integration:advanced  # Advanced features (auto-creates API key)
-```
-
-You can also provide your own API key to the advanced features test:
-```bash
-node tests/integration/advanced-features.test.ts sk_live_your_key_here
-```
-
-### Run Specific Test File
+### TypeScript Typechecking
 
 ```bash
-node tests/unit/webhooks.test.ts
-node tests/integration/auth.test.ts
+npm run typecheck
 ```
 
-## Test Suites
+### ESLint
 
-### Unit Tests
-
-#### Metrics Tests
-- Tests Prometheus metrics collection
-- Validates job submission/completion metrics
-- Checks metrics endpoint format
+```bash
+npm run lint
+```
 
 #### Webhooks Tests
 - Webhook CRUD operations
