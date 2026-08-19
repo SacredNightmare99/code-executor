@@ -1,6 +1,7 @@
 import type { ErrorRequestHandler } from "express";
 import { error as logError } from "../infrastructure/logs/logger.ts";
 import { ApiResponse } from "../utils/apiResponse.ts";
+import config from "../config/index.ts";
 
 /**
  * Global error handler middleware
@@ -20,7 +21,13 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     });
   }
 
+  // In production, never leak internal error messages for unexpected failures.
+  const exposed =
+    config.isProduction && status >= 500 && !apiError.code
+      ? "Internal server error"
+      : message;
+
   return res.status(status).json(
-    ApiResponse.error(message, apiError.code || "INTERNAL_ERROR")
+    ApiResponse.error(exposed, apiError.code || "INTERNAL_ERROR"),
   );
 };

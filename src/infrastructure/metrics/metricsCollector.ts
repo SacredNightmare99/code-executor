@@ -167,6 +167,9 @@ export class MetricsCollector {
       this.execution.min_time = Math.min(this.execution.min_time, executionTime);
       this.execution.max_time = Math.max(this.execution.max_time, executionTime);
       this.performance.execution_times.push(executionTime);
+      if (this.performance.execution_times.length > 10000) {
+        this.performance.execution_times.shift();
+      }
 
       // Track by language
       if (language) {
@@ -177,11 +180,11 @@ export class MetricsCollector {
         this.execution.by_language[language].count++;
         this.execution.by_language[language].min = Math.min(
           this.execution.by_language[language].min,
-          executionTime
+          executionTime,
         );
         this.execution.by_language[language].max = Math.max(
           this.execution.by_language[language].max,
-          executionTime
+          executionTime,
         );
       }
     }
@@ -190,6 +193,9 @@ export class MetricsCollector {
     if (queueWaitTime) {
       this.queue.queue_wait_times.push(queueWaitTime);
       this.performance.queue_wait_times.push(queueWaitTime);
+      if (this.performance.queue_wait_times.length > 10000) {
+        this.performance.queue_wait_times.shift();
+      }
       this.updateAverageQueueWaitTime();
     }
   }
@@ -350,33 +356,33 @@ export class MetricsCollector {
     const ts = Date.now();
 
     // Job metrics
-    lines.push(`# HELP code_executor_jobs_submitted Total jobs submitted`);
-    lines.push(`# TYPE code_executor_jobs_submitted counter`);
+    lines.push("# HELP code_executor_jobs_submitted Total jobs submitted");
+    lines.push("# TYPE code_executor_jobs_submitted counter");
     lines.push(`code_executor_jobs_submitted ${this.jobs.submitted} ${ts}`);
 
-    lines.push(`# HELP code_executor_jobs_completed Total jobs completed`);
-    lines.push(`# TYPE code_executor_jobs_completed counter`);
+    lines.push("# HELP code_executor_jobs_completed Total jobs completed");
+    lines.push("# TYPE code_executor_jobs_completed counter");
     lines.push(`code_executor_jobs_completed ${this.jobs.completed} ${ts}`);
 
-    lines.push(`# HELP code_executor_jobs_accepted Total jobs accepted`);
-    lines.push(`# TYPE code_executor_jobs_accepted counter`);
+    lines.push("# HELP code_executor_jobs_accepted Total jobs accepted");
+    lines.push("# TYPE code_executor_jobs_accepted counter");
     lines.push(`code_executor_jobs_accepted ${this.jobs.accepted} ${ts}`);
 
-    lines.push(`# HELP code_executor_jobs_failed Total jobs failed`);
-    lines.push(`# TYPE code_executor_jobs_failed counter`);
+    lines.push("# HELP code_executor_jobs_failed Total jobs failed");
+    lines.push("# TYPE code_executor_jobs_failed counter");
     lines.push(`code_executor_jobs_failed ${this.jobs.failed} ${ts}`);
 
-    lines.push(`# HELP code_executor_jobs_timeout Total jobs timed out`);
-    lines.push(`# TYPE code_executor_jobs_timeout counter`);
+    lines.push("# HELP code_executor_jobs_timeout Total jobs timed out");
+    lines.push("# TYPE code_executor_jobs_timeout counter");
     lines.push(`code_executor_jobs_timeout ${this.jobs.timeout} ${ts}`);
 
-    lines.push(`# HELP code_executor_jobs_compile_error Total compilation errors`);
-    lines.push(`# TYPE code_executor_jobs_compile_error counter`);
+    lines.push("# HELP code_executor_jobs_compile_error Total compilation errors");
+    lines.push("# TYPE code_executor_jobs_compile_error counter");
     lines.push(`code_executor_jobs_compile_error ${this.jobs.compile_error} ${ts}`);
 
     // Execution time metrics
-    lines.push(`# HELP code_executor_execution_time_ms Execution time in milliseconds`);
-    lines.push(`# TYPE code_executor_execution_time_ms gauge`);
+    lines.push("# HELP code_executor_execution_time_ms Execution time in milliseconds");
+    lines.push("# TYPE code_executor_execution_time_ms gauge");
     lines.push(`code_executor_execution_time_ms{quantile="avg"} ${this.getAverageExecutionTime()} ${ts}`);
     lines.push(`code_executor_execution_time_ms{quantile="min"} ${this.execution.min_time === Infinity ? 0 : this.execution.min_time} ${ts}`);
     lines.push(`code_executor_execution_time_ms{quantile="max"} ${this.execution.max_time} ${ts}`);
@@ -385,44 +391,44 @@ export class MetricsCollector {
     lines.push(`code_executor_execution_time_ms{quantile="p99"} ${this.getExecutionTimePercentile(99)} ${ts}`);
 
     // Queue metrics
-    lines.push(`# HELP code_executor_queue_size Current queue size`);
-    lines.push(`# TYPE code_executor_queue_size gauge`);
+    lines.push("# HELP code_executor_queue_size Current queue size");
+    lines.push("# TYPE code_executor_queue_size gauge");
     lines.push(`code_executor_queue_size ${this.queue.current_size} ${ts}`);
 
-    lines.push(`# HELP code_executor_queue_max_size Maximum queue size`);
-    lines.push(`# TYPE code_executor_queue_max_size gauge`);
+    lines.push("# HELP code_executor_queue_max_size Maximum queue size");
+    lines.push("# TYPE code_executor_queue_max_size gauge");
     lines.push(`code_executor_queue_max_size ${this.queue.max_size} ${ts}`);
 
-    lines.push(`# HELP code_executor_queue_wait_time_ms Queue wait time in milliseconds`);
-    lines.push(`# TYPE code_executor_queue_wait_time_ms gauge`);
+    lines.push("# HELP code_executor_queue_wait_time_ms Queue wait time in milliseconds");
+    lines.push("# TYPE code_executor_queue_wait_time_ms gauge");
     lines.push(`code_executor_queue_wait_time_ms{quantile="avg"} ${this.queue.avg_queue_wait_time} ${ts}`);
     lines.push(`code_executor_queue_wait_time_ms{quantile="p50"} ${this.getQueueWaitTimePercentile(50)} ${ts}`);
     lines.push(`code_executor_queue_wait_time_ms{quantile="p95"} ${this.getQueueWaitTimePercentile(95)} ${ts}`);
     lines.push(`code_executor_queue_wait_time_ms{quantile="p99"} ${this.getQueueWaitTimePercentile(99)} ${ts}`);
 
     // System metrics
-    lines.push(`# HELP code_executor_uptime_seconds Server uptime in seconds`);
-    lines.push(`# TYPE code_executor_uptime_seconds gauge`);
+    lines.push("# HELP code_executor_uptime_seconds Server uptime in seconds");
+    lines.push("# TYPE code_executor_uptime_seconds gauge");
     lines.push(`code_executor_uptime_seconds ${this.getUptimeSeconds()} ${ts}`);
 
-    lines.push(`# HELP code_executor_success_rate Job success rate percentage`);
-    lines.push(`# TYPE code_executor_success_rate gauge`);
+    lines.push("# HELP code_executor_success_rate Job success rate percentage");
+    lines.push("# TYPE code_executor_success_rate gauge");
     lines.push(`code_executor_success_rate ${this.getSuccessRate()} ${ts}`);
 
-    lines.push(`# HELP code_executor_jobs_per_second Jobs processed per second`);
-    lines.push(`# TYPE code_executor_jobs_per_second gauge`);
+    lines.push("# HELP code_executor_jobs_per_second Jobs processed per second");
+    lines.push("# TYPE code_executor_jobs_per_second gauge");
     lines.push(`code_executor_jobs_per_second ${this.getJobsPerSecond()} ${ts}`);
 
-    lines.push(`# HELP code_executor_memory_mb Memory usage in megabytes`);
-    lines.push(`# TYPE code_executor_memory_mb gauge`);
+    lines.push("# HELP code_executor_memory_mb Memory usage in megabytes");
+    lines.push("# TYPE code_executor_memory_mb gauge");
     lines.push(`code_executor_memory_mb ${Math.round(this.system.memory_usage.heapUsed / 1024 / 1024)} ${ts}`);
 
-    lines.push(`# HELP code_executor_redis_connected Redis connection status (1=connected, 0=disconnected)`);
-    lines.push(`# TYPE code_executor_redis_connected gauge`);
+    lines.push("# HELP code_executor_redis_connected Redis connection status (1=connected, 0=disconnected)");
+    lines.push("# TYPE code_executor_redis_connected gauge");
     lines.push(`code_executor_redis_connected ${this.system.redis_connected ? 1 : 0} ${ts}`);
 
-    lines.push(`# HELP code_executor_error_count Total errors`);
-    lines.push(`# TYPE code_executor_error_count counter`);
+    lines.push("# HELP code_executor_error_count Total errors");
+    lines.push("# TYPE code_executor_error_count counter");
     lines.push(`code_executor_error_count ${this.workers.error_count} ${ts}`);
 
     return lines.join("\n");

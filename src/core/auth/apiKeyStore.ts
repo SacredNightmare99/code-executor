@@ -99,13 +99,13 @@ export async function validateApiKey(rawKey: string): Promise<SafeUser | null> {
   // Update last used timestamp (async, don't wait)
   redis.set(
     `apikey:${hashedKey}`,
-    JSON.stringify({ ...keyInfo, lastUsedAt: Date.now() })
+    JSON.stringify({ ...keyInfo, lastUsedAt: Date.now() }),
   ).catch(() => {}); // Ignore errors updating lastUsedAt
 
   // Get and return user
   const user = await getUserById(keyInfo.userId);
   if (!user) return null;
-  const { passwordHash, ...safeUser } = user;
+  const { passwordHash: _passwordHash, ...safeUser } = user;
   return safeUser;
 }
 

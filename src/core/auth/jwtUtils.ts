@@ -68,10 +68,3 @@ export function verifyToken(token: string): TokenPayload {
     throw err;
   }
 }
-
-/**
- * Decode token without verification (for debugging)
- */
-export function decodeToken(token: string): TokenPayload | null {
-  return jwt.decode(token) as unknown as TokenPayload | null;
-}

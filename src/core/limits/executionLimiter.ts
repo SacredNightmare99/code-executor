@@ -4,7 +4,7 @@ import config from "../../config/index.ts";
  * Concurrency limiter for code execution.
  * Limits the number of simultaneous Docker containers running.
  */
-class ExecutionLimiter {
+export class ExecutionLimiter {
   max: number;
   running: number;
   queue: Array<(value?: unknown) => void>;
@@ -40,5 +40,5 @@ class ExecutionLimiter {
 
 export const executionLimiter = new ExecutionLimiter(
   config.maxConcurrent,
-  config.maxQueue
+  config.maxQueue,
 );

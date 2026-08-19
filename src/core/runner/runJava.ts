@@ -1,40 +1,49 @@
 import { spawn, spawnSync } from "child_process";
 import { JobStatus, type ExecutionResult } from "../jobs/jobTypes.ts";
 import { truncateOutput, MAX_OUTPUT_SIZE } from "../../utils/outputHandler.ts";
-import config from "../../config/index.ts";
+import { buildSandboxArgs, generateContainerId } from "./sandbox.ts";
+
+/**
+ * Build the docker arguments for a Java compile+run container.
+ *
+ * Exported separately so the exact sandbox constraints (memory override,
+ * gVisor, dropped capabilities, read-only, tmpfs, container name) are unit
+ * testable without spawning anything.
+ *
+ * @param {string} dir         - Host directory containing Main.java
+ * @param {string} containerId - Container name (must match for timeout cleanup)
+ * @returns {string[]} Array of docker arguments
+ */
+export function buildJavaArgs(dir: string, containerId: string): string[] {
+  const runCmd = "javac /app/Main.java && java -cp /app Main";
+
+  return buildSandboxArgs({
+    containerId,
+    image: "runner-java",
+    interactive: true,
+    hostDir: dir,
+    memory: "128m",
+    cpus: "1",
+    pidsLimit: "100",
+    tmpfsSize: "64m",
+    cmd: ["/bin/sh", "-c", runCmd],
+  });
+}
 
 /**
  * Compile and run Java code inside a single Docker container.
  *
- * Uses spawn for proper stdin/stdout handling with timeout enforcement.
+ * Uses the shared sandbox argument builder so Java gets the same security
+ * posture as Python/C (gVisor runtime, dropped capabilities, read-only root
+ * fs, tmpfs, non-root user) while allowing higher resource limits.
  *
  * @param {string} dir - Host directory containing Main.java
  * @param {string|null} input - stdin data to pipe to the program
  * @returns {Promise<{status: string, stdout: string, stderr: string, exit_code: number|null}>}
  */
 export function runJava(dir: string, input: string | number | null | undefined): Promise<ExecutionResult> {
-  const runCmd = `javac /app/Main.java && java -cp /app Main`;
-
-  const dockerArgs = [
-    "run",
-    "--rm",
-    "-i",  // Enable stdin
-    "--network=none",
-    "--memory=128m",
-    "--cpus=1",
-    "--pids-limit=100",
-    "--cap-drop=NET_RAW",
-    "--cap-drop=NET_ADMIN",
-    "--security-opt=no-new-privileges=true",
-    "-v",
-    `${dir}:/app:rw`,
-    "-w",
-    "/app",
-    "runner-java",
-    "/bin/sh",
-    "-c",
-    runCmd,
-  ];
+  const containerId = generateContainerId();
+  const dockerArgs = buildJavaArgs(dir, containerId);
 
   return new Promise((resolve) => {
     const child = spawn("docker", dockerArgs, {
@@ -81,10 +90,13 @@ export function runJava(dir: string, input: string | number | null | undefined):
     // Java needs more time for JVM startup + compilation + execution
     const javaTimeout = 8000; // 8 seconds for Java (vs 2s for Python/C)
     const killTimer = setTimeout(() => {
+      // Kill the container by its unique name (ensures cleanup even if the
+      // docker client hangs). `--rm` alone won't clean up when the client is
+      // killed, so an explicit kill is required.
       try {
-        spawnSync("docker", ["kill", "$(docker ps -q)"], { timeout: 2000 });
+        spawnSync("docker", ["kill", containerId], { timeout: 2000 });
       } catch {
-        // ignore
+        // ignore — container may already be dead
       }
 
       try {

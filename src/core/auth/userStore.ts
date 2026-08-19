@@ -77,7 +77,7 @@ export async function getUserById(userId: string): Promise<StoredUser | null> {
   
   try {
     return JSON.parse(data) as StoredUser;
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -164,7 +164,7 @@ export async function deleteUser(userId: string): Promise<boolean> {
       "MATCH",
       `user:${userId}:webhooks:*`,
       "COUNT",
-      "100"
+      "100",
     );
     cursor = newCursor;
     webhookKeys.push(...foundKeys);
@@ -183,7 +183,7 @@ export async function deleteUser(userId: string): Promise<boolean> {
           "MATCH",
           `webhook:${webhookId}:deliveries:*`,
           "COUNT",
-          "100"
+          "100",
         );
         deliveryCursor = newDeliveryCursor;
         if (deliveryKeys.length > 0) {
@@ -219,7 +219,7 @@ export async function getAllUsers(limit = 100, offset = 0): Promise<{
       "MATCH",
       "user:user_*",
       "COUNT",
-      "100"
+      "100",
     );
     cursor = newCursor;
     keys.push(...foundKeys);
@@ -239,7 +239,7 @@ export async function getAllUsers(limit = 100, offset = 0): Promise<{
       try {
         const user = JSON.parse(data) as StoredUser;
         users.push(sanitizeUser(user));
-      } catch (e) {
+      } catch {
         // Skip malformed entries
       }
     }
@@ -278,6 +278,6 @@ function getTierRateLimit(tier: UserTier): number {
 }
 
 function sanitizeUser(user: StoredUser): SafeUser {
-  const { passwordHash, ...safe } = user;
+  const { passwordHash: _passwordHash, ...safe } = user;
   return safe;
 }

@@ -1,38 +1,19 @@
 import "dotenv/config";
-import express from "express";
-import cors from "cors";
 
 import config, { getGVisorStatus } from "./src/config/index.ts";
-import { requestLogger } from "./src/infrastructure/logs/requestLogger.ts";
+import { createApp } from "./src/app.ts";
 import { info, warn } from "./src/infrastructure/logs/logger.ts";
-import { errorHandler } from "./src/middleware/errorHandler.ts";
-import { configureRoutes } from "./src/api/routes/index.ts";
 import { startWorker } from "./src/core/workers/executorWorker.ts";
+import { recoverInFlightJobs, startJobSweeper } from "./src/core/workers/jobRecovery.ts";
 import { redis, redisBlocking } from "./src/infrastructure/redis/redisClient.ts";
 
-const app = express();
+const app = createApp();
 
-// Middleware
-// CORS: Allow any origin for authenticated requests
-// Security is via API Key / JWT authentication, not origin restriction
-const corsOptions = {
-  origin: true, // Reflect request origin (allows all)
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-API-Key"],
-  credentials: true,
-};
-app.use(cors(corsOptions));
-app.use(requestLogger);
-app.use(express.json({ limit: "100kb" }));
-
-// Routes
-configureRoutes(app);
-
-// Error Handler
-app.use(errorHandler);
+// Tracks running workers so they can be stopped during graceful shutdown.
+const workerSignals: AbortController[] = [];
 
 // Start Server
-const server = app.listen(config.port, "0.0.0.0", () => {
+const server = app.listen(config.port, "0.0.0.0", async () => {
   info(`server started on port ${config.port}`);
 
   // Log gVisor status
@@ -43,13 +24,33 @@ const server = app.listen(config.port, "0.0.0.0", () => {
     warn(`gVisor (runsc) not available — ${gvisor.reason}`);
   }
 
+  // Recover jobs left in-flight by a previous process (crash/restart)
+  try {
+    const recovered = await recoverInFlightJobs();
+    if (recovered > 0) info(`recovered ${recovered} in-flight job(s) from previous run`);
+  } catch (err) {
+    warn(`job recovery failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // Start periodic sweeper for stuck (RUNNING) jobs
+  startJobSweeper();
+
   // Start workers
-  for (let i = 1; i <= config.workerCount; i++) startWorker(i);
+  for (let i = 1; i <= config.workerCount; i++) {
+    const controller = new AbortController();
+    workerSignals.push(controller);
+    startWorker(i, controller.signal);
+  }
 });
 
 // Graceful shutdown
 const gracefulShutdown = async (signal: NodeJS.Signals): Promise<void> => {
   info(`${signal} received, shutting down gracefully`);
+
+  // Stop workers from claiming new jobs.
+  for (const controller of workerSignals) {
+    controller.abort();
+  }
 
   server.close(async () => {
     info("HTTP server closed");

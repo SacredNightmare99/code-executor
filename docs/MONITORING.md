@@ -111,66 +111,25 @@ code_executor_execution_time_ms{quantile="p99"} 1500 1675255445123
 
 ### Quick Start with Docker Compose
 
-**docker-compose.monitoring.yml:**
-```yaml
-version: '3.8'
+A ready-to-run stack is provided at `deployment/docker-compose.monitoring.yml`
+(code-executor, Redis, Prometheus, Grafana):
 
-services:
-  code-executor:
-    build: .
-    ports:
-      - "4000:4000"
-    environment:
-      - WORKERS=2
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
-    networks:
-      - monitoring
+```bash
+docker compose -f deployment/docker-compose.monitoring.yml up -d
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    networks:
-      - monitoring
-
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-    networks:
-      - monitoring
-
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana_data:/var/lib/grafana
-    depends_on:
-      - prometheus
-    networks:
-      - monitoring
-
-volumes:
-  prometheus_data:
-  grafana_data:
-
-networks:
-  monitoring:
-    driver: bridge
+# Access services (bound to localhost on the host):
+# Code Executor: http://localhost:4000
+# Prometheus: http://localhost:9090
+# Grafana: http://localhost:3000 (user: admin, pass: from GF_ADMIN_PASSWORD or "admin")
 ```
 
-**prometheus.yml:**
+Notes:
+- The `code-executor` service mounts the host Docker socket
+  (`/var/run/docker.sock`) so the sandbox can spawn runner containers.
+- Prometheus scrapes `code-executor:4000` (the compose service name).
+
+**prometheus.yml** (`config/prometheus.yml`):
+
 ```yaml
 global:
   scrape_interval: 15s
@@ -178,23 +137,14 @@ global:
 
 scrape_configs:
   - job_name: 'code-executor'
+    metrics_path: '/metrics'
     static_configs:
       - targets: ['code-executor:4000']
-    metrics_path: '/metrics'
     scrape_interval: 5s
 ```
 
-### Running the Full Stack
-
-```bash
-# Start everything
-docker-compose -f docker-compose.monitoring.yml up -d
-
-# Access services:
-# Code Executor: http://localhost:4000
-# Prometheus: http://localhost:9090
-# Grafana: http://localhost:3000 (user: admin, pass: admin)
-```
+> The scrape target is the container name `code-executor`, not `localhost` —
+> Prometheus runs in its own container.
 
 ## Key Metrics to Monitor
 
@@ -262,7 +212,8 @@ code_executor_execution_time_ms{quantile="avg"} by (language)
 
 ## Alerting Rules
 
-**prometheus-alerts.yml:**
+**prometheus-alerts.yml** (example — create this file and load it via the
+Prometheus `rule_files` config if you want alerting):
 ```yaml
 groups:
   - name: code-executor
@@ -397,8 +348,9 @@ cloudwatch.putMetricData({
 3. Check network connectivity between services
 
 ### High memory usage
-1. Performance histogram grows unbounded
-2. Solution: Increase sampling interval or add memory limits
+1. In-process metric samples are capped at 10,000 entries per series
+2. Check Redis `maxmemory` usage (`INFO memory`) — jobs/queues are stored there
+3. Reduce `MAX_CONCURRENT`/`WORKERS` if the box is swapping
 
 ## Next Steps
 

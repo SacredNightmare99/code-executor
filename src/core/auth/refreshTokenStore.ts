@@ -36,7 +36,7 @@ export async function storeRefreshToken(token: string, userId: string, deviceInf
     `refresh_token:${tokenHash}`,
     JSON.stringify(tokenData),
     "EX",
-    ttl
+    ttl,
   );
 
   // Also add to user's token set for "logout all" functionality
@@ -93,7 +93,7 @@ export async function revokeAllUserRefreshTokens(userId: string): Promise<void> 
 
   // Delete all tokens
   const deletePromises = tokenHashes.map((hash: string) =>
-    redis.del(`refresh_token:${hash}`)
+    redis.del(`refresh_token:${hash}`),
   );
   await Promise.all(deletePromises);
 

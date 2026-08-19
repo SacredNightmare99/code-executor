@@ -40,11 +40,11 @@ export function rateLimitByUser(): RequestHandler {
         const resetTime = (currentMinute + 1) * 60000; // Next minute
         const retryAfter = Math.ceil((resetTime - now) / 1000); // Seconds until reset
         
-        warn(`rate limit exceeded`, { 
+        warn("rate limit exceeded", { 
           userId, 
           count, 
           limit: rateLimit,
-          tier: req.user.tier 
+          tier: req.user.tier, 
         });
         
         // Set rate limit headers
@@ -52,13 +52,13 @@ export function rateLimitByUser(): RequestHandler {
           "X-RateLimit-Limit": rateLimit.toString(),
           "X-RateLimit-Remaining": "0",
           "X-RateLimit-Reset": resetTime.toString(),
-          "Retry-After": retryAfter.toString()
+          "Retry-After": retryAfter.toString(),
         });
         
         throw new ApiError(
           429,
           `Rate limit exceeded. Maximum ${rateLimit} requests per minute for ${req.user.tier} tier.`,
-          "RATE_LIMIT_EXCEEDED"
+          "RATE_LIMIT_EXCEEDED",
         );
       }
       
@@ -69,16 +69,65 @@ export function rateLimitByUser(): RequestHandler {
       res.set({
         "X-RateLimit-Limit": rateLimit.toString(),
         "X-RateLimit-Remaining": remaining.toString(),
-        "X-RateLimit-Reset": resetTime.toString()
+        "X-RateLimit-Reset": resetTime.toString(),
       });
       
-      info(`rate limit check passed`, { 
+      info("rate limit check passed", { 
         userId, 
         count, 
         limit: rateLimit,
-        remaining 
+        remaining, 
       });
       
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+
+/**
+ * IP-based rate limiter (fixed window), for unauthenticated endpoints such as
+ * /auth/login and /auth/register to prevent brute-force / account creation spam.
+ *
+ * @param {number} limit          - Max requests per window
+ * @param {number} windowSeconds  - Window length in seconds
+ * @returns {Function} Express middleware
+ */
+export function rateLimitByIp(limit = 20, windowSeconds = 60): RequestHandler {
+  return async (req, res, next) => {
+    try {
+      const ip = req.ip || req.socket?.remoteAddress || "unknown";
+      const now = Date.now();
+      const windowKey = Math.floor(now / (windowSeconds * 1000));
+      const key = `ratelimit:ip:${ip}:${windowKey}`;
+
+      const redis = getRedis();
+      const count = await redis.incr(key);
+
+      // Set expiry on first request of the window (2x to be safe)
+      if (count === 1) {
+        await redis.expire(key, windowSeconds * 2);
+      }
+
+      if (count > limit) {
+        const resetTime = (windowKey + 1) * windowSeconds * 1000;
+        const retryAfter = Math.ceil((resetTime - now) / 1000);
+
+        warn("IP rate limit exceeded", {
+          ip,
+          count,
+          limit,
+        });
+
+        res.set("Retry-After", retryAfter.toString());
+        throw new ApiError(
+          429,
+          "Too many requests. Please try again later.",
+          "RATE_LIMIT_EXCEEDED",
+        );
+      }
+
       next();
     } catch (err) {
       next(err);
@@ -116,7 +165,7 @@ export function checkRateLimit(): RequestHandler {
       res.set({
         "X-RateLimit-Limit": rateLimit.toString(),
         "X-RateLimit-Remaining": remaining.toString(),
-        "X-RateLimit-Reset": resetTime.toString()
+        "X-RateLimit-Reset": resetTime.toString(),
       });
       
       next();

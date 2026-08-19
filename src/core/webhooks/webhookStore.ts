@@ -1,4 +1,5 @@
 import { redis } from "../../infrastructure/redis/redisClient.ts";
+import { isBlockedUrl } from "../../utils/urlSafety.ts";
 
 export const WEBHOOK_STATUS = {
   ACTIVE: "active",
@@ -50,7 +51,7 @@ async function scanKeys(pattern: string): Promise<string[]> {
       "MATCH",
       pattern,
       "COUNT",
-      "100"
+      "100",
     );
     cursor = newCursor;
     keys.push(...foundKeys);
@@ -74,6 +75,12 @@ export async function createWebhook(userId: string, url: string, options: Webhoo
     new URL(url);
   } catch {
     throw new Error("Invalid webhook URL format");
+  }
+
+  // SSRF guard: reject non-http(s) schemes and private/loopback/metadata hosts.
+  const blockReason = await isBlockedUrl(url);
+  if (blockReason) {
+    throw new Error(`Invalid webhook URL: ${blockReason}`);
   }
 
   const webhookId = `wh_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
@@ -174,7 +181,7 @@ export async function recordWebhookDelivery(webhookId: string, delivery: Webhook
       timestamp: Date.now(),
     }),
     "EX",
-    2592000 // 30 days
+    2592000, // 30 days
   );
 
   // Prune old deliveries (keep last 100) using SCAN

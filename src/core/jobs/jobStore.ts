@@ -28,7 +28,7 @@ export async function updateJob(id: string, updates: Partial<JobRecord>): Promis
   const merged = Object.assign(
     {},
     typeof current === "object" ? current : {},
-    updates
+    updates,
   );
   await redis.set(`job:${id}`, JSON.stringify(merged), "KEEPTTL");
 }
