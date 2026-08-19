@@ -1,4 +1,5 @@
 import { execFileSync } from "child_process";
+import os from "os";
 
 /**
  * Centralized Configuration Module
@@ -44,6 +45,7 @@ export interface AppConfig {
   maxQueue: number;
   jobTtlSeconds: number;
   runnerMode: RunnerMode;
+  runnerWorkspace: string;
   authRegisterLimit: number;
   authLoginLimit: number;
   sandbox: SandboxConfig;
@@ -142,6 +144,11 @@ export function createConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 
     // Runner mode: "docker" (real sandbox) or "mock" (tests, no containers)
     runnerMode: runnerModeRaw === "mock" ? "mock" : "docker",
+
+    // Directory where job source files are created. In containerized
+    // deployments this must be a path that is identical on the host so the
+    // Docker daemon can bind-mount it into runner containers.
+    runnerWorkspace: optionalEnv(env, "RUNNER_WORKSPACE", os.tmpdir()),
 
     // Sandbox
     sandbox: Object.freeze({

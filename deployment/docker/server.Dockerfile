@@ -13,6 +13,11 @@ RUN npm ci --omit=dev --no-audit --no-fund
 COPY server.ts ./
 COPY src ./src
 
+# The API spawns sandbox containers via the Docker CLI over the mounted
+# /var/run/docker.sock, so the CLI must be present in the image.
+RUN apt-get update && apt-get install -y --no-install-recommends docker.io \
+    && rm -rf /var/lib/apt/lists/*
+
 # Non-root user.
 RUN useradd -m appuser
 USER appuser

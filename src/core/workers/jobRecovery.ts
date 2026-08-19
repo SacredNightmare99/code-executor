@@ -56,15 +56,18 @@ async function scanJobs(): Promise<JobRecord[]> {
 export async function recoverInFlightJobs(): Promise<number> {
   let recovered = 0;
 
-  recovered += await requeueProcessingJobs();
+  const requeuedIds = new Set(await requeueProcessingJobs());
+  recovered += requeuedIds.size;
 
   const jobs = await scanJobs();
   for (const job of jobs) {
-    if (job.status === JobStatus.RUNNING) {
-      await updateJob(job.id, { status: JobStatus.QUEUED });
-      await enqueueJob(job.id);
-      recovered++;
-    }
+    if (job.status !== JobStatus.RUNNING) continue;
+    // Skip jobs already requeued from the processing list to avoid
+    // double-enqueueing (double execution / double webhook delivery).
+    if (requeuedIds.has(job.id)) continue;
+    await updateJob(job.id, { status: JobStatus.QUEUED });
+    await enqueueJob(job.id);
+    recovered++;
   }
 
   return recovered;

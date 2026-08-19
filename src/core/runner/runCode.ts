@@ -1,6 +1,5 @@
 import fs from "fs";
 import path from "path";
-import os from "os";
 import { JobStatus, type ExecutionMetrics, type ExecutionResult, type JobRecord, type JobStatusValue } from "../jobs/jobTypes.ts";
 
 import config from "../../config/index.ts";
@@ -108,7 +107,7 @@ export default async function runCode(job: JobRecord): Promise<RunCodeResult> {
     return mockRun(job);
   }
 
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "run-"));
+  const dir = fs.mkdtempSync(path.join(config.runnerWorkspace, "run-"));
   fs.chmodSync(dir, 0o777);
   const hasMultipleInputs = Array.isArray(job.inputs) && job.inputs.length > 0;
   const inputs: Array<string | number | null | undefined> = hasMultipleInputs ? job.inputs! : [job.stdin];
