@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Typecheck + lint + tests (mock runner)
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck (tsc --noEmit)
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit + Redis + API tests with coverage (>=70% lines)
+        run: npm run test:coverage
+        env:
+          REDIS_URL: redis://localhost:6379/15
+
+  docker-e2e:
+    name: Real Docker sandbox e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build runner-c
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployment/docker/runner-c.Dockerfile
+          tags: runner-c
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build runner-py
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployment/docker/runner-py.Dockerfile
+          tags: runner-py
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build runner-java
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployment/docker/runner-java.Dockerfile
+          tags: runner-java
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build runner-runtime
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployment/docker/runner-runtime.Dockerfile
+          tags: runner-runtime
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run real sandbox tests
+        run: npm run test:integration
+        env:
+          REDIS_URL: redis://localhost:6379/15

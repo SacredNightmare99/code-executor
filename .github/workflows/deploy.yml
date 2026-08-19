@@ -1,10 +1,19 @@
 name: Deploy
 
 on:
+  # Deploy ONLY on tagged releases (e.g. v0.1.0). CI still runs on every
+  # push/PR to main; deployment is gated behind a version tag.
   push:
-    branches:
-      - main
+    tags:
+      - "v*"
+  # Manual override for emergency deploys. Requires a ref; the default "main"
+  # is only used for manual runs — normal deploys come from tags.
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to deploy (default: main)"
+        required: false
+        default: main
 
 jobs:
   deploy:
@@ -13,12 +22,18 @@ jobs:
     steps:
       - name: Deploy to OCI VM
         uses: appleboy/ssh-action@v1.0.3
-
         with:
           host: ${{ secrets.HOST }}
-          username: ubuntu
+          username: ${{ secrets.SSH_USER || 'ubuntu' }}
           key: ${{ secrets.SSH_KEY }}
+          timeout: 60s
+          # Image rebuilds can be slow on a 1GB box.
+          command_timeout: 20m
           script: |
+            set -e
             cd ~/runnix
-            git pull origin main
-            pm2 restart runnix
+            RELEASE_REF="${{ github.ref_type == 'tag' && github.ref_name || inputs.ref }}"
+            git fetch origin --tags
+            PREV=$(git rev-parse HEAD)
+            git checkout -f "$RELEASE_REF"
+            bash scripts/deploy-remote.sh "$RELEASE_REF" "$PREV"

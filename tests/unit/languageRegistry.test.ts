@@ -1,7 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  LANGUAGES,
   getLanguage,
   getLanguageById,
   getAllLanguages,
@@ -33,7 +32,7 @@ describe("LanguageRegistry", () => {
         for (const field of requiredFields) {
           assert.ok(
             lang[field] !== undefined,
-            `${lang.id} missing field: ${field}`
+            `${lang.id} missing field: ${field}`,
           );
         }
       }
@@ -146,7 +145,7 @@ describe("LanguageRegistry", () => {
       for (const lang of getAllLanguages()) {
         assert.ok(
           lang.example && lang.example.length > 0,
-          `${lang.id} missing example code`
+          `${lang.id} missing example code`,
         );
       }
     });

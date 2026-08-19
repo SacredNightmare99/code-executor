@@ -1,41 +1,6 @@
-import { describe, it, beforeEach } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-
-// We need to test ExecutionLimiter in isolation. Since it exports a singleton,
-// we'll re-create instances directly.
-
-// Import the class by creating our own (mirrors the real implementation)
-class ExecutionLimiter {
-  max: number;
-  running: number;
-  queue: Array<(value?: unknown) => void>;
-  maxQueue: number;
-
-  constructor(maxConcurrent: number, maxQueue = 1000) {
-    this.max = maxConcurrent;
-    this.running = 0;
-    this.queue = [];
-    this.maxQueue = maxQueue;
-  }
-
-  async run<T>(task: () => Promise<T> | T): Promise<T> {
-    if (this.running >= this.max) {
-      if (this.queue.length >= this.maxQueue) {
-        throw new Error("Queue full");
-      }
-      await new Promise((resolve) => this.queue.push(resolve));
-    }
-    this.running++;
-    try {
-      return await task();
-    } finally {
-      this.running--;
-      if (this.queue.length > 0) {
-        this.queue.shift()?.();
-      }
-    }
-  }
-}
+import { ExecutionLimiter } from "../../src/core/limits/executionLimiter.ts";
 
 describe("ExecutionLimiter", () => {
   describe("constructor", () => {
@@ -107,18 +72,15 @@ describe("ExecutionLimiter", () => {
       const limiter = new ExecutionLimiter(1, 1);
 
       // Fill the concurrency slot
-      const blocker = limiter.run(
-        () => new Promise((r) => setTimeout(r, 200))
-      );
+      const blocker = limiter.run(() => new Promise((r) => setTimeout(r, 200)));
 
       // Fill the queue
       const queued = limiter.run(() => "queued");
 
       // This should fail — queue is full
-      await assert.rejects(
-        () => limiter.run(() => "rejected"),
-        { message: "Queue full" }
-      );
+      await assert.rejects(() => limiter.run(() => "rejected"), {
+        message: "Queue full",
+      });
 
       await Promise.all([blocker, queued]);
     });
@@ -131,13 +93,33 @@ describe("ExecutionLimiter", () => {
           limiter.run(() => {
             throw new Error("task failed");
           }),
-        { message: "task failed" }
+        { message: "task failed" },
       );
 
       // Limiter should still work
       assert.equal(limiter.running, 0);
       const result = await limiter.run(() => "ok");
       assert.equal(result, "ok");
+    });
+
+    it("should preserve FIFO ordering when multiple tasks queue", async () => {
+      const limiter = new ExecutionLimiter(1, 10);
+      const order: number[] = [];
+
+      const blocker = limiter.run(async () => {
+        await new Promise((r) => setTimeout(r, 30));
+        return 0;
+      });
+
+      const tasks = [1, 2, 3].map((n) =>
+        limiter.run(async () => {
+          order.push(n);
+          return n;
+        }),
+      );
+
+      await Promise.all([blocker, ...tasks]);
+      assert.deepEqual(order, [1, 2, 3]);
     });
   });
 });
