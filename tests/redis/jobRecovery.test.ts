@@ -2,7 +2,7 @@ import "../helpers/env.ts";
 import { describe, it, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { createJob, updateJob, getJob } from "../../src/core/jobs/jobStore.ts";
-import { enqueueJob, dequeueJob } from "../../src/core/jobs/jobQueue.ts";
+import { enqueueJob, dequeueJob, getQueueSize } from "../../src/core/jobs/jobQueue.ts";
 import { JobStatus, type JobRecord } from "../../src/core/jobs/jobTypes.ts";
 import { recoverInFlightJobs, sweepStaleJobs } from "../../src/core/workers/jobRecovery.ts";
 import { flushTestDb, closeRedis } from "../helpers/redis.ts";
@@ -62,6 +62,20 @@ describe("jobRecovery", () => {
 
     assert.equal((await getJob("queued-1"))?.status, JobStatus.QUEUED);
     assert.equal(await dequeueJob(), "queued-1");
+  });
+
+  it("should not double-enqueue jobs that are both processing and RUNNING", async () => {
+    await createJob(makeJob("dupe-1", { status: JobStatus.RUNNING, started_at: Date.now() }));
+    await enqueueJob("dupe-1");
+    await dequeueJob(); // moves dupe-1 to the processing list
+
+    const recovered = await recoverInFlightJobs();
+    assert.equal(recovered, 1);
+
+    // Exactly one queue entry, so the job cannot execute twice.
+    assert.equal(await getQueueSize(), 1);
+    assert.equal(await dequeueJob(), "dupe-1");
+    assert.equal(await dequeueJob(1), null);
   });
 
   it("should mark stale RUNNING jobs as SYSTEM_ERROR", async () => {
