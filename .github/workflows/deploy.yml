@@ -35,5 +35,11 @@ jobs:
             RELEASE_REF="${{ github.ref_type == 'tag' && github.ref_name || inputs.ref }}"
             git fetch origin --tags
             PREV=$(git rev-parse HEAD)
-            git checkout -f "$RELEASE_REF"
+            # Resolve the ref to a commit, preferring the (fresh) remote-tracking
+            # branch for branch deploys; fall back to the tag itself. Checking out
+            # a stale local branch (e.g. main left behind after a tag deploy)
+            # would redeploy an old revision.
+            RELEASE_COMMIT=$(git rev-parse --verify "origin/${RELEASE_REF}^{commit}" 2>/dev/null \
+              || git rev-parse --verify "${RELEASE_REF}^{commit}")
+            git checkout -f "$RELEASE_COMMIT"
             bash scripts/deploy-remote.sh "$RELEASE_REF" "$PREV"

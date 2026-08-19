@@ -29,7 +29,8 @@ if [ -f "$CHANGELOG" ] && grep -q "^## \[${VERSION}\]" "$CHANGELOG"; then
   ' "$CHANGELOG"
 else
   # Fallback: list commits since the previous tag (or all commits).
-  PREV_TAG="$(git tag --sort=-v:refname | head -n 1 || true)"
+  # Exclude the tag being released — otherwise the range would be empty.
+  PREV_TAG="$(git tag --sort=-v:refname | grep -vx "v${VERSION}" | head -n 1 || true)"
   echo "## ${VERSION}"
   echo ""
   echo "No CHANGELOG entry found for ${VERSION}. Commits since last release:"

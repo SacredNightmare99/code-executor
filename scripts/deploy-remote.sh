@@ -24,11 +24,19 @@ reload_app() {
 
 # ── 0. Checkout the requested release ref ────────────────────────────────
 if [ -n "$RELEASE_REF" ]; then
-  REF_COMMIT=$(git rev-parse --verify "$RELEASE_REF^{commit}" 2>/dev/null || true)
+  # Prefer the (fresh) remote-tracking branch for branch deploys; fall back to
+  # the ref itself (tags). Resolving to a commit avoids checking out a stale
+  # local branch, which would redeploy an old revision.
+  resolve_ref() {
+    git rev-parse --verify "origin/${RELEASE_REF}^{commit}" 2>/dev/null \
+      || git rev-parse --verify "${RELEASE_REF}^{commit}" 2>/dev/null \
+      || true
+  }
+  REF_COMMIT=$(resolve_ref)
   if [ -z "$REF_COMMIT" ]; then
     log "fetching tags"
     git fetch origin --tags
-    REF_COMMIT=$(git rev-parse --verify "$RELEASE_REF^{commit}" 2>/dev/null || true)
+    REF_COMMIT=$(resolve_ref)
   fi
   if [ -z "$REF_COMMIT" ]; then
     die "could not resolve ref: $RELEASE_REF"
@@ -36,7 +44,7 @@ if [ -n "$RELEASE_REF" ]; then
   fi
   if [ "$(git rev-parse HEAD)" != "$REF_COMMIT" ]; then
     log "checking out release ref: $RELEASE_REF"
-    git checkout -f "$RELEASE_REF"
+    git checkout -f "$REF_COMMIT"
   else
     log "already at $RELEASE_REF"
   fi
