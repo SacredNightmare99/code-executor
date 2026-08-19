@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-08-19
+## [v0.1.0] - 2026-08-19
 
 First semver release. This release formalizes the pre-alpha codebase: it
 hardens the sandbox, makes the job queue crash-safe, adds security guards, and
@@ -74,4 +74,3 @@ introduces reproducible CI/CD + production deployment tooling.
 - In production, a missing/default `JWT_SECRET` prevents startup.
 - Config defaults changed (see Changed) — set env vars explicitly.
 
-[0.1.0]: https://github.com/ishaan-jindal/runnix/releases/tag/v0.1.0

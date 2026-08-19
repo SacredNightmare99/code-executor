@@ -18,7 +18,7 @@ if [ -z "$VERSION" ]; then
 fi
 
 # Normalize: strip a leading "v".
-VERSION="${VERSION#v}"
+# VERSION="${VERSION#v}"
 
 if [ -f "$CHANGELOG" ] && grep -q "^## \[${VERSION}\]" "$CHANGELOG"; then
   # Print from the section header until the next "## [" header.
