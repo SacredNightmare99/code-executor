@@ -43,7 +43,7 @@ export const LANGUAGES: Record<string, LanguageInfo> = {
       networking: false,
       subprocess: false,
     },
-    example: `print("Hello, World!")`,
+    example: "print(\"Hello, World!\")",
   },
   c: {
     id: "c",
@@ -85,7 +85,7 @@ int main() {
       networking: false,
       subprocess: false,
     },
-    example: `public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hello, World!\");\n    }\n}\n`,
+    example: "public class Main {\n    public static void main(String[] args) {\n        System.out.println(\"Hello, World!\");\n    }\n}\n",
   },
 };
 
@@ -101,7 +101,7 @@ export function getLanguage(lang: string | null | undefined): LanguageInfo | nul
   }
 
   // Check aliases
-  for (const [id, langInfo] of Object.entries(LANGUAGES)) {
+  for (const [, langInfo] of Object.entries(LANGUAGES)) {
     if (langInfo.aliases && langInfo.aliases.includes(normalizedLang)) {
       return langInfo;
     }

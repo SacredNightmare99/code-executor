@@ -37,7 +37,7 @@ try {
     status: "✓",
     message: docker,
   });
-} catch (err) {
+} catch {
   checks.push({
     name: "Docker",
     status: "✗",
@@ -53,7 +53,7 @@ try {
     status: "✓",
     message: runsc.split("\n")[0],
   });
-} catch (err) {
+} catch {
   checks.push({
     name: "gVisor (runsc)",
     status: "⚠",
@@ -62,7 +62,7 @@ try {
 }
 
 // Check 4: Docker images
-const images = ["runner-c", "runner-py", "runner-runtime"];
+const images = ["runner-c", "runner-py", "runner-java", "runner-runtime"];
 for (const image of images) {
   try {
     execSync(`docker inspect ${image} > /dev/null 2>&1`, { stdio: "pipe" });
@@ -71,7 +71,7 @@ for (const image of images) {
       status: "✓",
       message: "Found",
     });
-  } catch (err) {
+  } catch {
     checks.push({
       name: `Docker image: ${image}`,
       status: "✗",
@@ -84,14 +84,14 @@ for (const image of images) {
 try {
   const redis = execSync(
     "redis-cli ping 2>/dev/null || echo 'Not available'",
-    { encoding: "utf-8" }
+    { encoding: "utf-8" },
   ).trim();
   checks.push({
     name: "Redis",
     status: redis === "PONG" ? "✓" : "⚠",
     message: redis === "PONG" ? "Running" : "Not available or not responding",
   });
-} catch (err) {
+} catch {
   checks.push({
     name: "Redis",
     status: "✗",
@@ -121,7 +121,7 @@ function checkServer(): Promise<CheckResult> {
               message: `HTTP ${res.statusCode}`,
             });
           }
-        } catch (e) {
+        } catch {
           resolve({
             name: "Server (localhost:4000)",
             status: "⚠",
@@ -131,7 +131,7 @@ function checkServer(): Promise<CheckResult> {
       });
     });
 
-    req.on("error", (err) => {
+    req.on("error", (_err) => {
       resolve({
         name: "Server (localhost:4000)",
         status: "✗",
@@ -176,6 +176,7 @@ checkServer().then((serverCheck) => {
       console.log("1. Build Docker images:");
       console.log("   docker build -f deployment/docker/runner-c.Dockerfile -t runner-c .");
       console.log("   docker build -f deployment/docker/runner-py.Dockerfile -t runner-py .");
+      console.log("   docker build -f deployment/docker/runner-java.Dockerfile -t runner-java .");
       console.log("   docker build -f deployment/docker/runner-runtime.Dockerfile -t runner-runtime .\n");
     }
 

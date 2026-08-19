@@ -21,7 +21,7 @@ export const requireAdmin: RequestHandler = (req, res, next) => {
 
     // Check if user has admin role
     if (req.user.role !== "admin") {
-      warn(`unauthorized admin access attempt`, {
+      warn("unauthorized admin access attempt", {
         userId: req.user.id,
         username: req.user.username,
         attemptedPath: req.path,
@@ -30,7 +30,7 @@ export const requireAdmin: RequestHandler = (req, res, next) => {
       throw new ApiError(
         403,
         "Admin access required",
-        "FORBIDDEN_ADMIN_ONLY"
+        "FORBIDDEN_ADMIN_ONLY",
       );
     }
 

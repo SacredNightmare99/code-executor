@@ -2,6 +2,7 @@ import https from "https";
 import http from "http";
 import crypto from "crypto";
 import { info, warn, error } from "../../infrastructure/logs/logger.ts";
+import { isBlockedUrl } from "../../utils/urlSafety.ts";
 import {
   recordWebhookDelivery,
   incrementFailedAttempts,
@@ -43,9 +44,21 @@ function deliverWebhook(url: string, payload: WebhookPayload, secret?: string | 
 
     let attemptCount = 0;
 
-    const tryDeliver = (): void => {
+    const tryDeliver = async (): Promise<void> => {
       attemptCount++;
       const isLastAttempt = attemptCount === MAX_RETRIES;
+
+      // SSRF defense-in-depth: re-check the URL at delivery time so webhooks
+      // registered before URL validation existed are still protected.
+      const blockReason = await isBlockedUrl(url).catch(() => null);
+      if (blockReason) {
+        resolve({
+          success: false,
+          attempts: attemptCount,
+          error: `Blocked URL: ${blockReason}`,
+        });
+        return;
+      }
 
       try {
         const urlObj = new URL(url);

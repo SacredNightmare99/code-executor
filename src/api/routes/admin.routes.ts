@@ -27,7 +27,7 @@ router.post("/users/:userId/upgrade", authenticateJWT, requireAdmin, async (req,
     if (!newTier || !validTiers.includes(newTier)) {
       throw new ApiError(
         400,
-        `Invalid tier. Must be one of: ${validTiers.join(", ")}`
+        `Invalid tier. Must be one of: ${validTiers.join(", ")}`,
       );
     }
     const tier = newTier as UserTier;
@@ -51,10 +51,10 @@ router.post("/users/:userId/upgrade", authenticateJWT, requireAdmin, async (req,
     const oldTier = user.tier;
     const updated = await updateUser(userId, { 
       tier,
-      rateLimit: newRateLimit 
+      rateLimit: newRateLimit, 
     });
 
-    info(`user tier upgraded`, {
+    info("user tier upgraded", {
       adminId,
       userId,
       oldTier,
@@ -87,7 +87,7 @@ router.get("/users/:userId", authenticateJWT, requireAdmin, async (req, res, nex
       throw new ApiError(404, "User not found");
     }
 
-    const { passwordHash, ...safeUser } = user;
+    const { passwordHash: _passwordHash, ...safeUser } = user;
 
     return res.json({
       success: true,
@@ -123,7 +123,7 @@ router.post("/users/:userId/make-admin", authenticateJWT, requireAdmin, async (r
 
     const updated = await updateUser(userId, { role: "admin" });
 
-    info(`user made admin`, {
+    info("user made admin", {
       adminId,
       userId,
       username: user.username,
@@ -165,7 +165,7 @@ router.post("/users/:userId/revoke-admin", authenticateJWT, requireAdmin, async 
 
     const updated = await updateUser(userId, { role: "user" });
 
-    info(`admin role revoked`, {
+    info("admin role revoked", {
       adminId,
       userId,
       username: user.username,
@@ -203,7 +203,7 @@ router.delete("/users/:userId", authenticateJWT, requireAdmin, async (req, res, 
 
     await deleteUser(userId);
 
-    warn(`user deleted`, {
+    warn("user deleted", {
       adminId,
       userId,
       username: user.username,
@@ -252,7 +252,7 @@ router.get("/users", authenticateJWT, requireAdmin, async (req, res, next) => {
 
     const result = await getAllUsers(limit, offset);
 
-    info(`admin listed users`, {
+    info("admin listed users", {
       adminId,
       count: result.users.length,
       total: result.total,

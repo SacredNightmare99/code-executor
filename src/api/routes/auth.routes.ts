@@ -26,9 +26,11 @@ import {
   revokeRefreshToken, 
   revokeAllUserRefreshTokens,
   validateRefreshToken,
-  getDeviceInfo 
+  getDeviceInfo, 
 } from "../../core/auth/refreshTokenStore.ts";
 import { authenticateJWT } from "../../middleware/authMiddleware.ts";
+import { rateLimitByIp } from "../../middleware/rateLimiter.ts";
+import config from "../../config/index.ts";
 
 const router = express.Router();
 
@@ -36,7 +38,7 @@ const router = express.Router();
  * Register New User
  * POST /auth/register
  */
-router.post("/register", async (req, res, next) => {
+router.post("/register", rateLimitByIp(config.authRegisterLimit, 60), async (req, res, next) => {
   try {
     const { username, email, password } = req.body;
     
@@ -88,7 +90,7 @@ router.post("/register", async (req, res, next) => {
  * Login User
  * POST /auth/login
  */
-router.post("/login", async (req, res, next) => {
+router.post("/login", rateLimitByIp(config.authLoginLimit, 60), async (req, res, next) => {
   try {
     const { username, password } = req.body;
     
@@ -113,7 +115,7 @@ router.post("/login", async (req, res, next) => {
     }
     
     // Remove password hash from response
-    const { passwordHash, ...safeUser } = user;
+    const { passwordHash: _passwordHash, ...safeUser } = user;
     
     // Generate tokens
     const accessToken = generateAccessToken(safeUser);
@@ -176,7 +178,7 @@ router.post("/refresh", async (req, res, next) => {
       throw new ApiError(401, "User not found");
     }
     
-    const { passwordHash, ...safeUser } = user;
+    const { passwordHash: _passwordHash, ...safeUser } = user;
     
     // Generate new access token
     const accessToken = generateAccessToken(safeUser);
@@ -254,7 +256,7 @@ router.get("/me", authenticateJWT, async (req, res, next) => {
       throw new ApiError(404, "User not found", "USER_NOT_FOUND");
     }
 
-    const { passwordHash, ...safeUser } = user;
+    const { passwordHash: _passwordHash, ...safeUser } = user;
 
     return res.json({
       success: true,
@@ -300,7 +302,7 @@ router.patch("/me", authenticateJWT, async (req, res, next) => {
       success: true,
       data: {
         user: updated,
-        message: "Profile updated successfully"
+        message: "Profile updated successfully",
       },
     });
   } catch (err) {
@@ -348,7 +350,7 @@ router.post("/change-password", authenticateJWT, async (req, res, next) => {
     return res.json({
       success: true,
       data: {
-        message: "Password updated successfully. All sessions revoked, please login again."
+        message: "Password updated successfully. All sessions revoked, please login again.",
       },
     });
   } catch (err) {

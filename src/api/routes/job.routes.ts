@@ -9,7 +9,7 @@ import { enqueueJob } from "../../core/jobs/jobQueue.ts";
 import { JobStatus, type JobRecord } from "../../core/jobs/jobTypes.ts";
 import { authenticateJWT } from "../../middleware/authMiddleware.ts";
 import { rateLimitByUser, checkRateLimit } from "../../middleware/rateLimiter.ts";
-import { getAllLanguages, getLanguageById } from "../../core/languages/languageRegistry.ts";
+import { getAllLanguages, getLanguageById, isLanguageSupported } from "../../core/languages/languageRegistry.ts";
 
 const router = express.Router();
 
@@ -27,6 +27,10 @@ router.post("/submit", authenticateJWT, rateLimitByUser(), async (req, res, next
 
     if (!language || !code) {
       throw new ApiError(400, "Missing language or code");
+    }
+
+    if (!isLanguageSupported(language)) {
+      throw new ApiError(400, `Unsupported language: ${language}`, "UNSUPPORTED_LANGUAGE");
     }
 
     if (stdin !== undefined && typeof stdin !== "string") {
@@ -64,7 +68,7 @@ router.post("/submit", authenticateJWT, rateLimitByUser(), async (req, res, next
       throw new ApiError(400, "callback_url must be a string");
     }
 
-    info(`submission received`, { reqId, userId });
+    info("submission received", { reqId, userId });
     info(`code size ${code.length} bytes`, { reqId });
 
     if (code.length > 100_000) {
@@ -93,15 +97,15 @@ router.post("/submit", authenticateJWT, rateLimitByUser(), async (req, res, next
 
     await enqueueJob(jobId);
 
-    info(`job queued`, { reqId, jobId, userId });
+    info("job queued", { reqId, jobId, userId });
 
     // Record metrics
     metrics.recordSubmission(language);
 
     return res.status(201).json(
       ApiResponse.success(
-        ApiResponse.jobResponse({ id: jobId, status: JobStatus.QUEUED })
-      )
+        ApiResponse.jobResponse({ id: jobId, status: JobStatus.QUEUED }),
+      ),
     );
   } catch (err) {
     next(err);
@@ -122,14 +126,14 @@ router.get("/result/:id", authenticateJWT, checkRateLimit(), async (req, res, ne
 
     if (!job) {
       return res.status(404).json(
-        ApiResponse.error("Job not found", "JOB_NOT_FOUND")
+        ApiResponse.error("Job not found", "JOB_NOT_FOUND"),
       );
     }
 
     // Users can only see their own jobs
     if (job.userId !== userId) {
       return res.status(403).json(
-        ApiResponse.error("Forbidden", "FORBIDDEN")
+        ApiResponse.error("Forbidden", "FORBIDDEN"),
       );
     }
 
@@ -138,8 +142,8 @@ router.get("/result/:id", authenticateJWT, checkRateLimit(), async (req, res, ne
 
     return res.json(
       ApiResponse.success(
-        ApiResponse.jobResponse(job, includeOutput)
-      )
+        ApiResponse.jobResponse(job, includeOutput),
+      ),
     );
   } catch (err) {
     next(err);
@@ -159,14 +163,14 @@ router.get("/jobs/:id/code", authenticateJWT, checkRateLimit(), async (req, res,
 
     if (!job) {
       return res.status(404).json(
-        ApiResponse.error("Job not found", "JOB_NOT_FOUND")
+        ApiResponse.error("Job not found", "JOB_NOT_FOUND"),
       );
     }
 
     // Users can only see their own jobs
     if (job.userId !== userId) {
       return res.status(403).json(
-        ApiResponse.error("Forbidden", "FORBIDDEN")
+        ApiResponse.error("Forbidden", "FORBIDDEN"),
       );
     }
 
@@ -251,7 +255,7 @@ router.get("/languages/:lang", (req, res, next) => {
 
     if (!langInfo) {
       return res.status(404).json(
-        ApiResponse.error("Language not found", "LANGUAGE_NOT_FOUND")
+        ApiResponse.error("Language not found", "LANGUAGE_NOT_FOUND"),
       );
     }
 

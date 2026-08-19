@@ -8,7 +8,7 @@ declare module "express" {
 
   export interface Request<
     Params = ParamsDictionary,
-    ResBody = unknown,
+    _ResBody = unknown,
     ReqBody = RequestBody,
     ReqQuery = QueryDictionary,
   > extends IncomingMessage {

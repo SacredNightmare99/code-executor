@@ -25,7 +25,7 @@ router.post("/webhooks", authenticateJWT, rateLimitByUser(), async (req, res, ne
 
     if (!url) {
       return res.status(400).json(
-        ApiResponse.error("Webhook URL required", "MISSING_URL")
+        ApiResponse.error("Webhook URL required", "MISSING_URL"),
       );
     }
 
@@ -38,7 +38,7 @@ router.post("/webhooks", authenticateJWT, rateLimitByUser(), async (req, res, ne
   } catch (err) {
     if (err.message.includes("Invalid webhook")) {
       return res.status(400).json(
-        ApiResponse.error(err.message, "INVALID_WEBHOOK_URL")
+        ApiResponse.error(err.message, "INVALID_WEBHOOK_URL"),
       );
     }
     next(err);
@@ -78,13 +78,13 @@ router.get("/webhooks/:id", authenticateJWT, checkRateLimit(), async (req, res, 
 
     if (!webhook) {
       return res.status(404).json(
-        ApiResponse.error("Webhook not found", "WEBHOOK_NOT_FOUND")
+        ApiResponse.error("Webhook not found", "WEBHOOK_NOT_FOUND"),
       );
     }
 
     if (webhook.userId !== userId) {
       return res.status(403).json(
-        ApiResponse.error("Forbidden", "FORBIDDEN")
+        ApiResponse.error("Forbidden", "FORBIDDEN"),
       );
     }
 
@@ -112,13 +112,13 @@ router.get("/webhooks/:id/deliveries", authenticateJWT, checkRateLimit(), async 
 
     if (!webhook) {
       return res.status(404).json(
-        ApiResponse.error("Webhook not found", "WEBHOOK_NOT_FOUND")
+        ApiResponse.error("Webhook not found", "WEBHOOK_NOT_FOUND"),
       );
     }
 
     if (webhook.userId !== userId) {
       return res.status(403).json(
-        ApiResponse.error("Forbidden", "FORBIDDEN")
+        ApiResponse.error("Forbidden", "FORBIDDEN"),
       );
     }
 
@@ -148,7 +148,7 @@ router.delete("/webhooks/:id", authenticateJWT, rateLimitByUser(), async (req, r
 
     if (!deleted) {
       return res.status(404).json(
-        ApiResponse.error("Webhook not found", "WEBHOOK_NOT_FOUND")
+        ApiResponse.error("Webhook not found", "WEBHOOK_NOT_FOUND"),
       );
     }
 
@@ -159,7 +159,7 @@ router.delete("/webhooks/:id", authenticateJWT, rateLimitByUser(), async (req, r
   } catch (err) {
     if (err.message.includes("Unauthorized")) {
       return res.status(403).json(
-        ApiResponse.error("Forbidden", "FORBIDDEN")
+        ApiResponse.error("Forbidden", "FORBIDDEN"),
       );
     }
     next(err);

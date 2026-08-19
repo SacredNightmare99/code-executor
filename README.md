@@ -9,6 +9,8 @@ Secure, isolated code execution service with JWT authentication, user-based rate
 - **POST /auth/register** - Register new user
 - **POST /auth/login** - Login and get JWT tokens
 - **POST /auth/refresh** - Refresh access token
+- **POST /auth/logout** - Logout current device
+- **POST /auth/logout-all** - Logout from all devices
 - **GET /auth/me** - Get current user profile
 - **PATCH /auth/me** - Update email or username
 - **POST /auth/change-password** - Change password
@@ -57,6 +59,7 @@ Secure, isolated code execution service with JWT authentication, user-based rate
 # 1. Build Docker images
 docker build -f deployment/docker/runner-c.Dockerfile -t runner-c .
 docker build -f deployment/docker/runner-py.Dockerfile -t runner-py .
+docker build -f deployment/docker/runner-java.Dockerfile -t runner-java .
 docker build -f deployment/docker/runner-runtime.Dockerfile -t runner-runtime .
 
 # 2. Start Redis (if not running)
@@ -231,12 +234,12 @@ tests/                   # Test suites
 
 ## Documentation
 
-- **[docs/API.md](docs/API.md)** - Complete API documentation with examples
+- **[docs/API.md](docs/API.md)** - Complete API documentation with examples (incl. webhooks, code retrieval, job search)
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Production deployment, pm2, CI/CD
 - **[docs/MONITORING.md](docs/MONITORING.md)** - Metrics, dashboards, alerting
 - **[docs/DOCKER.md](docs/DOCKER.md)** - Docker images and security
 - **[docs/TESTING.md](docs/TESTING.md)** - Testing guide and procedures
 - **[docs/ADMIN.md](docs/ADMIN.md)** - Admin features and user management
-- **[docs/ADVANCED_FEATURES.md](docs/ADVANCED_FEATURES.md)** - Webhooks, code retrieval, job search
 
 ## Features
 
@@ -252,17 +255,17 @@ tests/                   # Test suites
 ✅ **Security**
 
 - Docker isolation with gVisor sandbox
-- Resource limits (64MB memory, 0.5 CPU)
-- Seccomp filtering
+- Resource limits (128MB memory, 0.5 CPU, 32 processes per container)
+- Seccomp filtering / dropped capabilities
 - User isolation (users can only access their own jobs)
 - HMAC-signed webhook deliveries
 
 ✅ **Code Execution**
 
-- Python 3.12 and C (GCC 13) support
+- Python 3.12, C (GCC 13), and Java 21 support
 - stdin/stdout/stderr capture
-- Timeout protection (2s default)
-- Queue-based job distribution
+- Timeout protection (2s default, 8s for Java)
+- Queue-based job distribution with crash recovery
 - Execution metrics (compile time, run time, queue wait)
 
 ✅ **Advanced Features**
@@ -285,6 +288,28 @@ tests/                   # Test suites
 
 - Redis-backed persistence
 - Graceful shutdown
-- Rate limiting with sliding window
+- Rate limiting with fixed-window Redis counters
+- Reliable job queue (in-flight jobs recovered after crash/restart)
 - Comprehensive test suite (unit + integration)
 - Load testing with k6
+
+## Production Deployment (OCI / 1GB VM)
+
+The app runs on a single VM under **pm2**. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+for the full guide. Summary:
+
+```bash
+# 1. Clone + provision the box (installs Node 22, Redis, Docker, gVisor,
+#    swap, builds runner images, configures pm2 + startup). Idempotent.
+bash scripts/bootstrap-server.sh
+
+# 2. Manage
+pm2 status                  # process status
+pm2 logs runnix             # logs
+pm2 reload runnix --update-env   # zero-downtime reload
+```
+
+- Deploys via GitHub Actions **on tagged releases** (`git tag v0.1.0 && git push origin v0.1.0`) — see `.github/workflows/` and `docs/DEPLOYMENT.md`.
+- `ecosystem.config.cjs` pins runtime settings (1 worker, 350MB memory cap, auto-restart).
+- Runtime uses `node --experimental-strip-types` (Node ≥ 22.18), no build step.
+- Requirements: Node 22 LTS, Redis, Docker (+ gVisor `runsc` runtime), pm2.

@@ -76,10 +76,10 @@ async function seed(): Promise<void> {
     try {
       await redis.ping();
       log("✓ Redis connected", "green");
-    } catch (err) {
+    } catch {
       log(
         "✗ Redis not available. Make sure Redis is running on localhost:6379",
-        "red"
+        "red",
       );
       process.exit(1);
     }
@@ -96,7 +96,7 @@ async function seed(): Promise<void> {
         if (existing) {
           log(
             `⊘ Skipped ${userData.username} (already exists)`,
-            "yellow"
+            "yellow",
           );
           skipped++;
           continue;
@@ -106,18 +106,18 @@ async function seed(): Promise<void> {
         await createUser(userData);
         log(
           `✓ Created ${userData.username.padEnd(10)} - ${userData.tier.padEnd(12)} tier - ${userData.description}`,
-          "green"
+          "green",
         );
         created++;
       } catch (err) {
         log(
           `✗ Failed to create ${userData.username}: ${err.message}`,
-          "red"
+          "red",
         );
       }
     }
 
-    log(`\n📊 Summary:`, "blue");
+    log("\n📊 Summary:", "blue");
     log(`  Created: ${created}`, "green");
     log(`  Skipped: ${skipped}`, "yellow");
     log(`  Total:   ${created + skipped}`, "blue");
@@ -134,54 +134,54 @@ async function seed(): Promise<void> {
         };
         log(
           `  ${user.username.padEnd(10)} / ${user.password.padEnd(20)} (${limits[user.tier]} req/min)`,
-          "green"
+          "green",
         );
       }
     });
 
     log("\nAdmin User:", "yellow");
-    log(`  admin / AdminPass123! (enterprise tier)`, "green");
+    log("  admin / AdminPass123! (enterprise tier)", "green");
 
     log("\n💡 Quick Test Commands:\n", "blue");
     log("1. Get token:", "yellow");
     log(
-      '   TOKEN=$(curl -s -X POST http://localhost:4000/auth/login \\',
-      ""
+      "   TOKEN=$(curl -s -X POST http://localhost:4000/auth/login \\",
+      "",
     );
     log(
       '     -H "Content-Type: application/json" \\',
-      ""
+      "",
     );
     log(
       '     -d \'{"username":"alice","password":"AlicePass123!"}\' \\',
-      ""
+      "",
     );
     log('     | jq ".data.accessToken" -r)', "");
 
     log("\n2. Use token:", "yellow");
     log(
-      '   curl -X POST http://localhost:4000/submit \\',
-      ""
+      "   curl -X POST http://localhost:4000/submit \\",
+      "",
     );
     log('     -H "Authorization: Bearer $TOKEN" \\', "");
     log(
       '     -H "Content-Type: application/json" \\',
-      ""
+      "",
     );
     log(
       '     -d \'{"language":"python","code":"print(1+1)"}\' | jq .',
-      ""
+      "",
     );
 
     log("\n3. Upgrade user tier (admin only):", "yellow");
     log(
-      '   curl -X POST http://localhost:4000/admin/users/USER_ID/upgrade \\',
-      ""
+      "   curl -X POST http://localhost:4000/admin/users/USER_ID/upgrade \\",
+      "",
     );
     log('     -H "Authorization: Bearer $ADMIN_TOKEN" \\', "");
     log(
       '     -H "Content-Type: application/json" \\',
-      ""
+      "",
     );
     log('     -d \'{"newTier":"professional"}\' | jq .', "");
 

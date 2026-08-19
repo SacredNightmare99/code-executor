@@ -18,6 +18,9 @@ export interface SandboxArgsOptions {
   tmpfsSize?: string;
   readOnly?: boolean;
   user?: string;
+  memory?: string;
+  cpus?: string;
+  pidsLimit?: string;
   hostDir: string;
   cmd: string[];
 }
@@ -42,6 +45,9 @@ export function generateContainerId(): string {
  * @param {string}  [options.tmpfsSize]  - Override tmpfs size (default from config)
  * @param {boolean} [options.readOnly]   - Mount root filesystem read-only (default true)
  * @param {string}  [options.user]       - Container user (default "runner")
+ * @param {string}  [options.memory]     - Override memory limit (default from config)
+ * @param {string}  [options.cpus]       - Override CPU limit (default from config)
+ * @param {string}  [options.pidsLimit]  - Override process limit (default from config)
  * @param {string}  options.hostDir      - Host directory to mount at /app
  * @param {string[]} options.cmd         - Command and arguments to execute
  * @returns {string[]} Array of docker arguments
@@ -54,6 +60,9 @@ export function buildSandboxArgs(options: SandboxArgsOptions): string[] {
     tmpfsSize,
     readOnly = true,
     user,
+    memory,
+    cpus,
+    pidsLimit,
     hostDir,
     cmd,
   } = options;
@@ -76,10 +85,10 @@ export function buildSandboxArgs(options: SandboxArgsOptions): string[] {
 
   // Resource constraints
   args.push(
-    `--memory=${sb.memoryLimit}`,
-    `--cpus=${sb.cpuLimit}`,
-    `--pids-limit=${sb.pidsLimit}`,
-    `--network=${sb.network}`
+    `--memory=${memory || sb.memoryLimit}`,
+    `--cpus=${cpus || sb.cpuLimit}`,
+    `--pids-limit=${pidsLimit || sb.pidsLimit}`,
+    `--network=${sb.network}`,
   );
 
   // Security hardening
@@ -97,7 +106,7 @@ export function buildSandboxArgs(options: SandboxArgsOptions): string[] {
 
   args.push(
     "--tmpfs",
-    `/tmp:rw,nosuid,noexec,size=${tmpfsSize || sb.tmpfsSize}`
+    `/tmp:rw,nosuid,noexec,size=${tmpfsSize || sb.tmpfsSize}`,
   );
 
   // User isolation

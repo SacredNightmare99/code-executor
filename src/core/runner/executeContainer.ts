@@ -17,7 +17,7 @@ import config from "../../config/index.ts";
 export function executeContainer(
   dockerArgs: string[],
   stdin: string | number | null | undefined,
-  containerId: string
+  containerId: string,
 ): Promise<ExecutionResult> {
   return new Promise((resolve, reject) => {
     const child = spawn("docker", dockerArgs, {

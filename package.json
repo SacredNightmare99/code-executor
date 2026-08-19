@@ -1,25 +1,23 @@
 {
   "name": "code-executor",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "start": "node --experimental-strip-types server.ts",
     "dev": "nodemon --config config/nodemon.json --exec \"node --experimental-strip-types\" server.ts",
-    "test": "npm run test:unit:pure && npm run test:unit && npm run test:integration",
-    "test:unit:pure": "node --experimental-strip-types --test tests/unit/apiError.test.ts tests/unit/apiResponse.test.ts tests/unit/outputHandler.test.ts tests/unit/config.test.ts tests/unit/crypto.test.ts tests/unit/metricsCollector.test.ts tests/unit/languageRegistry.test.ts tests/unit/executionLimiter.test.ts tests/unit/sandbox.test.ts",
-    "test:unit": "npm run test:unit:metrics && npm run test:unit:webhooks && npm run test:unit:language && npm run test:unit:apikey",
-    "test:unit:metrics": "node --experimental-strip-types tests/unit/metrics.test.ts",
-    "test:unit:webhooks": "node --experimental-strip-types tests/unit/webhooks.test.ts",
-    "test:unit:language": "node --experimental-strip-types tests/unit/language-registry.test.ts",
-    "test:unit:apikey": "node --experimental-strip-types tests/unit/apikey.test.ts",
-    "test:integration": "npm run test:integration:main && npm run test:integration:auth && npm run test:integration:advanced",
-    "test:integration:main": "node --experimental-strip-types tests/integration/integration.test.ts",
-    "test:integration:auth": "node --experimental-strip-types tests/integration/auth.test.ts",
-    "test:integration:advanced": "node --experimental-strip-types tests/integration/advanced-features.test.ts",
+    "test": "npm run test:unit && npm run test:redis && npm run test:api",
+    "test:unit": "node --experimental-strip-types --test --test-concurrency=1 tests/unit/*.test.ts",
+    "test:redis": "node --experimental-strip-types --test --test-concurrency=1 tests/redis/*.test.ts",
+    "test:api": "node --experimental-strip-types --test --test-concurrency=1 tests/api/*.test.ts",
+    "test:integration": "RUN_DOCKER_TESTS=1 node --experimental-strip-types --test --test-force-exit --test-concurrency=1 tests/docker/*.test.ts",
+    "test:coverage": "node --experimental-strip-types --test --experimental-test-coverage --test-coverage-lines=70 --test-concurrency=1 tests/unit/*.test.ts tests/redis/*.test.ts tests/api/*.test.ts",
     "seed": "node --experimental-strip-types scripts/seed.ts",
     "seed:admin": "node --experimental-strip-types scripts/seed-admin.ts",
     "diagnose": "node --experimental-strip-types scripts/diagnose.ts",
     "load:test": "k6 run scripts/load-test.ts",
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint ."
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -29,9 +27,17 @@
     "ioredis": "^5.9.2",
     "jsonwebtoken": "^9.0.2"
   },
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "devDependencies": {
     "@types/node": "^25.7.0",
+    "@types/supertest": "^7.2.1",
+    "@typescript-eslint/eslint-plugin": "^8.67.0",
+    "@typescript-eslint/parser": "^8.67.0",
+    "eslint": "^9.39.5",
     "nodemon": "^3.1.11",
+    "supertest": "^7.2.2",
     "typescript": "^5.6.3"
   }
 }

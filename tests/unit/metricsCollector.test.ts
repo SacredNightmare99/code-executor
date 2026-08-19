@@ -183,7 +183,7 @@ describe("MetricsCollector", () => {
       for (const metric of requiredMetrics) {
         assert.ok(
           output.includes(metric),
-          `Missing required metric: ${metric}`
+          `Missing required metric: ${metric}`,
         );
       }
     });

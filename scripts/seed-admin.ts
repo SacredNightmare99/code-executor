@@ -34,10 +34,10 @@ async function seedAdmin(): Promise<void> {
     try {
       await redis.ping();
       log("✓ Redis connected", "green");
-    } catch (err) {
+    } catch {
       log(
         "✗ Redis not available. Make sure Redis is running.",
-        "red"
+        "red",
       );
       process.exit(1);
     }
@@ -51,7 +51,7 @@ async function seedAdmin(): Promise<void> {
     if (existing) {
       log(
         `⊘ Skipped: Admin user '${username}' already exists.`,
-        "yellow"
+        "yellow",
       );
       
       // If the user exists but isn't an admin, we shouldn't automatically upgrade them here

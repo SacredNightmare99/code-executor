@@ -1,8 +1,8 @@
 import fs from "fs";
 import path from "path";
-import os from "os";
 import { JobStatus, type ExecutionMetrics, type ExecutionResult, type JobRecord, type JobStatusValue } from "../jobs/jobTypes.ts";
 
+import config from "../../config/index.ts";
 import { compileC } from "./compileC.ts";
 import { runBinary } from "./runBinary.ts";
 import { runPython } from "./runPython.ts";
@@ -46,8 +46,68 @@ function withInput(input: string | number | null | undefined, result: ExecutionR
   };
 }
 
+/**
+ * Deterministic runner used in tests (RUNNER_MODE=mock). Never spawns Docker.
+ * Result is driven by sentinel strings in the submitted code so tests can
+ * exercise every status path:
+ *   - "compile-error"  -> COMPILE_ERROR
+ *   - "timeout"        -> TIME_LIMIT_EXCEEDED
+ *   - "runtime-error"  -> RUNTIME_ERROR
+ *   - anything else    -> ACCEPTED
+ */
+function mockRun(job: JobRecord): RunCodeResult {
+  const hasMultipleInputs = Array.isArray(job.inputs) && job.inputs.length > 0;
+  const inputs: Array<string | number | null | undefined> = hasMultipleInputs
+    ? job.inputs!
+    : [job.stdin];
+
+  const results: ExecutionResult[] = inputs.map((input) => {
+    const stdin = input == null ? "" : String(input);
+    const code = job.code;
+
+    if (code.includes("compile-error")) {
+      return { stdin, status: JobStatus.COMPILE_ERROR, stdout: "", stderr: "Mock compile error", exit_code: 1 };
+    }
+    if (code.includes("timeout")) {
+      return { stdin, status: JobStatus.TIME_LIMIT_EXCEEDED, stdout: "", stderr: "Mock timeout", exit_code: null };
+    }
+    if (code.includes("runtime-error")) {
+      return { stdin, status: JobStatus.RUNTIME_ERROR, stdout: "", stderr: "Mock runtime error", exit_code: 1 };
+    }
+    return {
+      stdin,
+      status: JobStatus.ACCEPTED,
+      stdout: `mock output (${stdin})`,
+      stderr: "",
+      exit_code: 0,
+    };
+  });
+
+  const overallStatus = getOverallStatus(results);
+
+  if (hasMultipleInputs) {
+    return {
+      status: overallStatus,
+      results,
+      stdout: "",
+      stderr: "",
+      exit_code: null as number | null,
+      metrics: { compile_time_ms: 0, exec_time_ms: results.length },
+    };
+  }
+
+  return {
+    ...results[0]!,
+    metrics: { compile_time_ms: 0, exec_time_ms: 1 },
+  };
+}
+
 export default async function runCode(job: JobRecord): Promise<RunCodeResult> {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "run-"));
+  if (config.runnerMode === "mock") {
+    return mockRun(job);
+  }
+
+  const dir = fs.mkdtempSync(path.join(config.runnerWorkspace, "run-"));
   fs.chmodSync(dir, 0o777);
   const hasMultipleInputs = Array.isArray(job.inputs) && job.inputs.length > 0;
   const inputs: Array<string | number | null | undefined> = hasMultipleInputs ? job.inputs! : [job.stdin];
@@ -210,7 +270,7 @@ export default async function runCode(job: JobRecord): Promise<RunCodeResult> {
   } finally {
     try {
       fs.rmSync(dir, { recursive: true, force: true });
-    } catch (e) {
+    } catch {
       // ignore cleanup errors
     }
   }

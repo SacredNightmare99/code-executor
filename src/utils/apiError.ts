@@ -17,6 +17,8 @@ export class ApiError extends Error {
     this.statusCode = statusCode;
     this.code = code;
     this.details = details;
-    Error.captureStackTrace && Error.captureStackTrace(this, ApiError);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, ApiError);
+    }
   }
 }

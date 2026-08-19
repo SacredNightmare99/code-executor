@@ -1,4 +1,4 @@
-import { dequeueJob } from "../jobs/jobQueue.ts";
+import { dequeueJob, completeJobProcessing, getQueueSize } from "../jobs/jobQueue.ts";
 import { getJob, updateJob } from "../jobs/jobStore.ts";
 import { JobStatus } from "../jobs/jobTypes.ts";
 import runCode from "../runner/runCode.ts";
@@ -10,19 +10,45 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-export async function startWorker(id: number): Promise<void> {
+/** Sleep that resolves early if the provided signal aborts. */
+function sleepAbortable(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true },
+    );
+  });
+}
+
+export async function startWorker(id: number, signal?: AbortSignal): Promise<void> {
   console.log(`[WORKER ${id}] started`);
 
   let consecutiveErrors = 0;
 
-  while (true) {
+  while (!signal?.aborted) {
+    let jobId: string | null = null;
     try {
-      const jobId = await dequeueJob();
+      jobId = await dequeueJob();
       if (!jobId) continue;
+
+      // Keep the in-memory queue metrics in sync with Redis.
+      try {
+        metrics.updateQueueSize(await getQueueSize());
+        metrics.recordQueueDequeue();
+      } catch {
+        // best-effort metrics update
+      }
 
       const job = await getJob(jobId);
       if (!job) {
         console.warn(`[WORKER ${id}] job ${jobId} not found, skipping`);
+        await completeJobProcessing(jobId);
+        consecutiveErrors = 0;
         continue;
       }
 
@@ -34,32 +60,45 @@ export async function startWorker(id: number): Promise<void> {
         started_at: Date.now(),
       });
 
-      const executionStart = Date.now();
-      const result = await executionLimiter.run(() => runCode(job));
-      const executionTime = Date.now() - executionStart;
-      const finishedAt = Date.now();
+      // Execution is isolated in its own try/catch: a failure here (e.g. the
+      // execution limiter queue is full, or the sandbox throws) must fail the
+      // job and move on — NOT retry forever leaving the job stuck RUNNING.
+      try {
+        const executionStart = Date.now();
+        const result = await executionLimiter.run(() => runCode(job));
+        const executionTime = Date.now() - executionStart;
+        const finishedAt = Date.now();
 
-      const compileTime = result.metrics?.compile_time_ms ?? 0;
-      const execTime = result.metrics?.exec_time_ms ?? 0;
-      const totalTime = finishedAt - createdAt;
+        const compileTime = result.metrics?.compile_time_ms ?? 0;
+        const execTime = result.metrics?.exec_time_ms ?? 0;
+        const totalTime = finishedAt - createdAt;
 
-      await updateJob(jobId, {
-        status: result.status,
-        stdout: result.stdout,
-        stderr: result.stderr,
-        exit_code: result.exit_code,
-        results: "results" in result ? result.results : undefined,
-        finished_at: finishedAt,
-        metrics: {
-          queue_wait_ms: queueWaitTime,
-          compile_time_ms: compileTime,
-          exec_time_ms: execTime,
-          total_time_ms: totalTime,
-        },
-      });
+        await updateJob(jobId, {
+          status: result.status,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          exit_code: result.exit_code,
+          results: "results" in result ? result.results : undefined,
+          finished_at: finishedAt,
+          metrics: {
+            queue_wait_ms: queueWaitTime,
+            compile_time_ms: compileTime,
+            exec_time_ms: execTime,
+            total_time_ms: totalTime,
+          },
+        });
 
-      // Record metrics
-      metrics.recordCompletion(result.status, job.language, executionTime, queueWaitTime);
+        metrics.recordCompletion(result.status, job.language, executionTime, queueWaitTime);
+      } catch (runErr) {
+        console.error(`[WORKER ${id}] execution failed for job ${jobId}:`, errorMessage(runErr));
+        await updateJob(jobId, {
+          status: JobStatus.SYSTEM_ERROR,
+          stderr: errorMessage(runErr),
+          finished_at: Date.now(),
+        });
+      }
+
+      await completeJobProcessing(jobId);
 
       // Trigger webhooks for job completion
       if (job.userId) {
@@ -76,11 +115,20 @@ export async function startWorker(id: number): Promise<void> {
     } catch (err) {
       consecutiveErrors++;
       metrics.recordWorkerError();
+      if (jobId) {
+        try {
+          await completeJobProcessing(jobId);
+        } catch {
+          // best-effort cleanup
+        }
+      }
       const backoff = Math.min(100 * Math.pow(2, consecutiveErrors - 1), 5000);
       console.error(`[WORKER ${id}] error (attempt ${consecutiveErrors}):`, errorMessage(err));
-      
+
       // Reset errors on successful retry after backoff
-      await new Promise((resolve) => setTimeout(resolve, backoff));
+      await sleepAbortable(backoff, signal);
     }
   }
+
+  console.log(`[WORKER ${id}] stopped`);
 }
