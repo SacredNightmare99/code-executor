@@ -96,6 +96,7 @@ export async function startWorker(id: number, signal?: AbortSignal): Promise<voi
           stderr: errorMessage(runErr),
           finished_at: Date.now(),
         });
+        metrics.recordCompletion(JobStatus.SYSTEM_ERROR, job.language, 0, queueWaitTime);
       }
 
       await completeJobProcessing(jobId);

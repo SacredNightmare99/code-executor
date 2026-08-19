@@ -92,16 +92,17 @@ router.post("/register", rateLimitByIp(config.authRegisterLimit, 60), async (req
  */
 router.post("/login", rateLimitByIp(config.authLoginLimit, 60), async (req, res, next) => {
   try {
-    const { username, password } = req.body;
+    const { username, email, password } = req.body;
+    const identifier = username || email;
     
-    if (!username || !password) {
-      throw new ApiError(400, "Username and password are required");
+    if (!identifier || !password) {
+      throw new ApiError(400, "Username/email and password are required");
     }
     
     // Get user (try username first, then email)
-    let user = await getUserByUsername(username);
+    let user = await getUserByUsername(identifier);
     if (!user) {
-      user = await getUserByEmail(username);
+      user = await getUserByEmail(identifier);
     }
     
     if (!user) {
