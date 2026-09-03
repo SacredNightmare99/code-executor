@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Archived — `runnix` → `runnix-legacy`.** Repository frozen at v0.1.0 and to be renamed `runnix-legacy` / archived on GitHub. Active development moves to a new Go + Kubernetes repo `runnix` (`github.com/ishaan-jindal/runnix`): namespace-per-tenant with `ResourceQuota`/`LimitRange`/`NetworkPolicy`, Kata Containers + gVisor (`RuntimeClass: kata-gvisor`), NATS JetStream durable execution queue, and Job-per-execution. No further releases are planned from this repo; `docs/` is kept as-is for reference. See `Runnix/` in the vault and the archived README.
+
 ## [v0.1.0] - 2026-08-19
 
 First semver release. This release formalizes the pre-alpha codebase: it
